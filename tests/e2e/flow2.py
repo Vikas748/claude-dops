@@ -1,0 +1,14 @@
+exec(open('/tmp/flow.py').read().split("ok=lambda")[0])
+ok=lambda c,msg: print(("PASS " if c else "FAIL ")+msg)
+sql("update auth_otps set created_at=created_at - interval '2 hours'")
+call("POST","/api/auth/request-otp",{"email":"head.dept@hospital.in"}); code,_=last_code()
+c,d,sc=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":code}); cookie=[x for x in sc if x.startswith("dops_session=")][0].split(";")[0]
+c,d,_=call("POST","/api/admin",{"name":"Dr Two","email":"dr.two@hospital.in","role":"DOCTOR","status":"ACTIVE","permissions":["OPD:VIEW","OPD:CREATE","BAD:PERM"]},cookie=cookie)
+call("POST","/api/auth/request-otp",{"email":"dr.two@hospital.in"}); code,_=last_code()
+c,d,_=call("POST","/api/auth/verify-otp",{"email":"dr.two@hospital.in","code":code,"client":"MOBILE"}); tok=d["token"]
+c,d,_=call("GET","/api/access",bearer=tok); ok(c==200 and d["data"]["permissions"]==["OPD:VIEW","OPD:CREATE"], f"12 Bearer access -> {c}, perms {d['data']['permissions']} (invalid one dropped)")
+c,d,_=call("GET","/api/patients",bearer=tok); ok(c==200, f"12b doctor can view OPD via Bearer -> {c}")
+c,d,_=call("GET","/api/special?kind=LEPROSY",bearer=tok); ok(c==403, f"12c doctor blocked from unassigned module -> {c}")
+c,_,_=call("POST","/api/auth/logout",bearer=tok); c2,_,_=call("GET","/api/access",bearer=tok); ok(c2==401, f"20b mobile logout -> token now {c2}")
+call("GET","/api/auth/logout",cookie=cookie)
+print("   audit:", sql("select string_agg(action,', ' order by id) from audit_logs where module='AUTH'"))
