@@ -96,6 +96,8 @@ MAIL_FROM=DOPS <the-smtp-email-address>
 
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` is no longer used and can be removed from an existing Vercel project.
 
+**Variable type:** add `NEXT_PUBLIC_SUPABASE_URL` as type **Config** (not Secret). Vercel does not allow `NEXT_PUBLIC_` variables to be Secret; saved as Secret, the value does not reach the build and file storage fails with `Storage upload signing failed (404)` in `/api/health`. The project URL is not a secret. Every other variable should be **Secret**. After changing a `NEXT_PUBLIC_` variable, **Redeploy**: its value is built into the app.
+
 3. Click **Deploy**. After changing any variable later, use **Deployments → Redeploy** so the change takes effect.
 
 ## 6. Check the deployment

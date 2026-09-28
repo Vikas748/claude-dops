@@ -50,6 +50,7 @@ if [ "${1:-}" = "--browser" ]; then
   fresh; run ui; fresh; run ui2; fresh; run sess
   fresh; python3 /tmp/ui_setup.py >/dev/null 2>&1; run ui_up
   fresh; run greet
+  fresh; run step1
 fi
 pkill -P $APP 2>/dev/null; kill $APP 2>/dev/null
 echo

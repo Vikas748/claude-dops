@@ -120,30 +120,33 @@ test("sensitive special-register data is masked", () => {
   assert.match(route, /access\.role !== "ADMIN" \? maskPayload\(p\) : p/);
 });
 
-test("Leprosy register validates identifiers and summarizes release amounts", () => {
+test("Leprosy register validates identifiers and shows only total and pending", () => {
   const route = read("app/api/special/route.ts");
   const component = read("components/special-module.tsx");
   assert.match(route, /Aadhaar number must contain 12 digits/);
   assert.match(route, /Mobile number must contain 10 digits/);
   assert.match(route, /Amount Released must be YES or NO/);
-  assert.match(component, /Total released value/);
-  assert.match(component, /leprosyReleasedAmount/);
-  assert.match(component, /kind === "LEPROSY"/);
+  assert.match(component, /<span>Total records<\/span>/);
+  assert.match(component, /<span>Release pending<\/span>/);
+  assert.doesNotMatch(component, /Total released value|<span>Amount released<\/span>/);
 });
 
-test("CM Helpline links existing patients and tracks case resolution", () => {
+test("CM Helpline cases come from the Ward only, with Pending/Resolved status", () => {
   const route = read("app/api/special/route.ts");
   const component = read("components/special-module.tsx");
   const page = read("app/page.tsx");
   const clinical = read("components/clinical-phase3.tsx");
   assert.match(route, /This patient already has an active CM Helpline case/);
-  assert.match(route, /"Resolved At"/);
-  assert.match(route, /linked\.address/);
-  assert.match(component, /Link Patient/);
-  assert.match(component, /All statuses/);
-  assert.match(component, /In progress/);
-  assert.match(page, /source: "OPD"/);
-  assert.match(clinical, /source: "IPD"/);
+  assert.match(route, /if \(source !== "WARD" \|\| !sourceRecordId\)/);
+  assert.match(route, /CM Helpline cases are added from the Ward\./);
+  assert.match(route, /\["PENDING", "RESOLVED"\]\.includes\(status\)/);
+  assert.match(route, /patientId = current\.patientId/); // a case is never re-linked to another patient
+  assert.match(clinical, /source: "WARD"/);
+  assert.doesNotMatch(clinical, /source: "IPD"/);
+  assert.doesNotMatch(page, /addToHelpline/);
+  assert.match(component, /kind === "HELPLINE" \? <><option value="PENDING">Pending<\/option><option value="RESOLVED">Resolved<\/option><\/>/);
+  assert.doesNotMatch(component, /In progress/);
+  assert.match(page, /<SpecialModule key=\{active\}/); // switching registers must not keep the previous register
 });
 
 test("list modules support their required search fields", () => {

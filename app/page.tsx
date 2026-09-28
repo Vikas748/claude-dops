@@ -449,28 +449,7 @@ export default function Home() {
       notify(e instanceof Error ? e.message : "Admission failed.");
     }
   }
-  async function addToHelpline(p: Patient) {
-    try {
-      const r = await fetch("/api/special", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            action: "link_helpline",
-            patientId: p.id,
-            source: "OPD",
-            sourceRecordId: p.opdId,
-          }),
-        }),
-        j = await r.json();
-      if (!r.ok) throw new Error(j.message);
-      notify(`${p.name} added to CM Helpline.`);
-      setActive("CM Helpline");
-    } catch (e) {
-      notify(
-        e instanceof Error ? e.message : "Could not add CM Helpline case.",
-      );
-    }
-  }
+
   async function showTimeline(p: Patient) {
     setTimelinePatient(p);
     setTimelineEvents([]);
@@ -496,7 +475,7 @@ export default function Home() {
           </div>
           <div>
             <strong>DOPS</strong>
-            <span>Burn & Plastic Surgery</span>
+            <span>Plastic & Reconstructive Surgery</span>
           </div>
         </SidebarHeader>
         <SidebarContent className="px-3">
@@ -529,8 +508,8 @@ export default function Home() {
           <div className="topbar-title">
             <SidebarTrigger className="md:hidden" />
             <div>
-              <span>NSCB Medical College, Jabalpur</span>
-              <strong>Plastic & Reconstructive Surgery</strong>
+              <span>PLASTIC & RECONSTRUCTIVE SURGERY</span>
+              <strong>NSCB MEDICAL COLLEGE, JABALPUR</strong>
             </div>
           </div>
           <div className="topbar-actions">
@@ -599,7 +578,6 @@ export default function Home() {
                 }}
                 remove={setDeleting}
                 admit={admit}
-                addToHelpline={addToHelpline}
                 showTimeline={showTimeline}
               />
             </>
@@ -615,7 +593,7 @@ export default function Home() {
           ) : ["Class", "Research", "Publication"].includes(active) ? (
             <AcademicModule module={active} notify={notify} />
           ) : ["Skin Bank", "Leprosy", "CM Helpline"].includes(active) ? (
-            <SpecialModule module={active} notify={notify} />
+            <SpecialModule key={active} module={active} notify={notify} />
           ) : active === "Admin" ? (
             <AdminModule notify={notify} />
           ) : (
@@ -1099,7 +1077,6 @@ function OpdPage({
   edit,
   remove,
   admit,
-  addToHelpline,
   showTimeline,
 }: {
   records: Patient[];
@@ -1110,7 +1087,6 @@ function OpdPage({
   edit: (p: Patient) => void;
   remove: (p: Patient) => void;
   admit: (p: Patient) => void;
-  addToHelpline: (p: Patient) => void;
   showTimeline: (p: Patient) => void;
 }) {
   return (
@@ -1199,14 +1175,6 @@ function OpdPage({
                         onClick={() => edit(p)}
                       >
                         <Pencil />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label={`Add ${p.name} to CM Helpline`}
-                        onClick={() => addToHelpline(p)}
-                      >
-                        <HelpCircle />
                       </Button>
                       <Button
                         variant="outline"

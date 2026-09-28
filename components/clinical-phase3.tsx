@@ -129,21 +129,22 @@ export function ClinicalPhase3({
       setSaving(false);
     }
   }
-  async function addToHelpline(p: Ipd) {
+  // CM Helpline cases are raised from the Ward; the server looks up the
+  // patient, diagnosis and bed from the ward stay.
+  async function addToHelpline(w: Ward) {
     try {
       const r = await fetch("/api/special", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             action: "link_helpline",
-            patientId: p.patientId,
-            source: "IPD",
-            sourceRecordId: p.id,
+            source: "WARD",
+            sourceRecordId: w.wardId,
           }),
         }),
         j = await r.json();
       if (!r.ok) throw new Error(j.message);
-      notify(`${p.name} added to CM Helpline.`);
+      notify(`${w.name} added to CM Helpline.`);
     } catch (e) {
       notify(
         e instanceof Error ? e.message : "Could not add CM Helpline case.",
@@ -280,13 +281,6 @@ export function ClinicalPhase3({
                   >
                     <Theater /> Schedule OT
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addToHelpline(p)}
-                  >
-                    <Stethoscope /> CM Helpline
-                  </Button>
                 </div>
               </td>
             </tr>
@@ -343,6 +337,13 @@ export function ClinicalPhase3({
                   </Button>
                   <Button size="sm" onClick={() => open("discharge", w)}>
                     <FileUp /> Discharge
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addToHelpline(w)}
+                  >
+                    <Stethoscope /> CM Helpline
                   </Button>
                 </div>
               </td>

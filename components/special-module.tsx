@@ -1,5 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
+import { localDate } from "@/lib/dates";
 import { Columns3, Download, History, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,13 +20,6 @@ type R = {
   status: string;
   patientId: number | null;
   payload: Record<string, string>;
-};
-type P = {
-  id: number;
-  patientCode: string;
-  name: string;
-  diagnosis: string;
-  mobile: string;
 };
 type CustomColumn = { id: number; name: string; dataType: "TEXT" | "NUMBER"; position: number };
 type Version = { id: number; primaryName: string; status: string; payload: Record<string, string>; changedBy: string; createdAt: string };
@@ -69,7 +63,7 @@ const fields: { [k: string]: string[] } = {
     "Amount Released",
     "Amount",
   ],
-  HELPLINE: ["Diagnosis", "Mobile", "Address", "Source", "Source Record", "Description", "Resolved At"],
+  HELPLINE: ["Patient ID", "Diagnosis", "Mobile", "Address", "Ward / Bed", "Description", "Resolved At"],
 };
 export function SpecialModule({
   module,
@@ -86,10 +80,9 @@ export function SpecialModule({
           : "HELPLINE",
     ),
     [rows, setRows] = useState<R[]>([]),
-    [patients, setPatients] = useState<P[]>([]),
     [q, setQ] = useState(""),
     [statusFilter, setStatusFilter] = useState("ALL"),
-    [month, setMonth] = useState(new Date().toISOString().slice(0, 7)),
+    [month, setMonth] = useState(localDate().slice(0, 7)),
     [open, setOpen] = useState(false),
     [edit, setEdit] = useState<R | null>(null),
     [saving, setSaving] = useState(false),
@@ -133,12 +126,6 @@ export function SpecialModule({
     if (!kind.startsWith("SKIN_")) return;
     void fetch(`/api/special/columns?kind=${kind}`, { cache: "no-store" }).then((response) => response.json()).then((result) => result.success && setCustomColumns(result.data));
   }, [kind]);
-  useEffect(() => {
-    if (kind === "HELPLINE")
-      fetch("/api/patients", { cache: "no-store" })
-        .then((r) => r.json())
-        .then((j) => j.success && setPatients(j.data));
-  }, [kind]);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
@@ -146,19 +133,12 @@ export function SpecialModule({
       payload: Record<string, string> = Object.fromEntries(
         totalFields.map((x) => [x, String(f.get(x) ?? "")]),
       );
-    const patient = patients.find((p) => p.id === Number(f.get("patientId")));
-    if (patient)
-      Object.assign(payload, {
-        Diagnosis: patient.diagnosis,
-        Mobile: patient.mobile,
-        Source: "OPD/IPD",
-      });
     const body = {
       id: edit?.id,
       kind,
-      patientId: patient?.id || null,
+      patientId: edit?.patientId ?? null,
       recordDate: f.get("recordDate"),
-      primaryName: patient?.name || f.get("primaryName"),
+      primaryName: f.get("primaryName"),
       status: f.get("status"),
       payload,
     };
@@ -199,7 +179,6 @@ export function SpecialModule({
   const formulaValues = rows.map((row) => Number(row.payload[formulaField])).filter(Number.isFinite);
   const formulaResult = formulaOperation === "COUNT" ? formulaValues.length : formulaOperation === "AVERAGE" ? (formulaValues.length ? formulaValues.reduce((sum, value) => sum + value, 0) / formulaValues.length : 0) : formulaValues.reduce((sum, value) => sum + value, 0);
   const leprosyReleased = rows.filter((row) => row.payload["Amount Released"] === "YES");
-  const leprosyReleasedAmount = leprosyReleased.reduce((sum, row) => sum + (Number(row.payload.Amount) || 0), 0);
   async function remove(id: number) {
     if (!confirm("Remove this row?")) return;
     await fetch(`/api/special?id=${id}`, { method: "DELETE" });
@@ -213,7 +192,7 @@ export function SpecialModule({
           <h1>{module}</h1>
           <p>
             {kind === "HELPLINE"
-              ? "Link existing OPD/IPD patients without entering demographics again."
+              ? "Cases are added from the Ward. Update status and notes here."
               : "Spreadsheet-style monthly departmental register."}
           </p>
         </div>
@@ -229,14 +208,16 @@ export function SpecialModule({
               <Download /> Export CSV
             </a>
           </Button>
-          <Button
-            onClick={() => {
-              setEdit(null);
-              setOpen(true);
-            }}
-          >
-            <Plus /> {kind === "HELPLINE" ? "Link Patient" : "Add Row"}
-          </Button>
+          {kind !== "HELPLINE" && (
+            <Button
+              onClick={() => {
+                setEdit(null);
+                setOpen(true);
+              }}
+            >
+              <Plus /> Add Row
+            </Button>
+          )}
         </div>
       </section>
       {module === "Skin Bank" && (
@@ -261,22 +242,19 @@ export function SpecialModule({
           onChange={(e) => setMonth(e.target.value)}
           aria-label="Report month"
         />
-        {kind === "HELPLINE" && <select className="register-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="CM Helpline status"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="IN_PROGRESS">In progress</option><option value="RESOLVED">Resolved</option></select>}
+        {kind === "HELPLINE" && <select className="register-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="CM Helpline status"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="RESOLVED">Resolved</option></select>}
       </section>
       {kind === "HELPLINE" && (
         <section className="register-summary" aria-label="CM Helpline summary">
           <article><span>Total cases</span><strong>{rows.length}</strong></article>
           <article><span>Pending</span><strong>{rows.filter((row) => row.status === "PENDING").length}</strong></article>
-          <article><span>In progress</span><strong>{rows.filter((row) => row.status === "IN_PROGRESS").length}</strong></article>
           <article><span>Resolved</span><strong>{rows.filter((row) => row.status === "RESOLVED").length}</strong></article>
         </section>
       )}
       {kind === "LEPROSY" && (
         <section className="register-summary" aria-label="Leprosy monthly summary">
           <article><span>Total records</span><strong>{rows.length}</strong></article>
-          <article><span>Amount released</span><strong>{leprosyReleased.length}</strong></article>
           <article><span>Release pending</span><strong>{rows.length - leprosyReleased.length}</strong></article>
-          <article><span>Total released value</span><strong>₹{leprosyReleasedAmount.toLocaleString("en-IN")}</strong></article>
         </section>
       )}
       <article className="panel opd-panel">
@@ -324,6 +302,7 @@ export function SpecialModule({
                       <Button
                         variant="outline"
                         size="icon-sm"
+                        aria-label={`Edit ${r.primaryName}`}
                         onClick={() => {
                           setEdit(r);
                           setOpen(true);
@@ -335,6 +314,7 @@ export function SpecialModule({
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        aria-label={`Delete ${r.primaryName}`}
                         onClick={() => remove(r.id)}
                       >
                         <Trash2 />
@@ -350,7 +330,7 @@ export function SpecialModule({
           <div className="empty-state">
             <Plus />
             <h3>{kind === "HELPLINE" && rows.length ? "No cases match this status" : "No rows yet"}</h3>
-            <p>{kind === "HELPLINE" ? "Link a patient from OPD or IPD to start tracking." : "Add the first record to this register."}</p>
+            <p>{kind === "HELPLINE" ? "Add a case from the Ward using the CM Helpline button." : "Add the first record to this register."}</p>
           </div>
         )}
       </article>
@@ -388,18 +368,8 @@ export function SpecialModule({
               {kind === "HELPLINE" ? (
                 <label>
                   Patient
-                  <select
-                    name="patientId"
-                    required
-                    defaultValue={edit?.patientId ?? ""}
-                  >
-                    <option value="">Select OPD/IPD patient</option>
-                    {patients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.patientCode} — {p.name}
-                      </option>
-                    ))}
-                  </select>
+                  {/* The patient is fixed by the Ward case and cannot be changed here. */}
+                  <Input name="primaryName" defaultValue={edit?.primaryName ?? ""} readOnly />
                 </label>
               ) : (
                 <label>
@@ -462,7 +432,7 @@ export function SpecialModule({
                     edit?.status ?? (kind === "HELPLINE" ? "PENDING" : "ACTIVE")
                   }
                 >
-                  {kind === "HELPLINE" ? <><option value="PENDING">PENDING</option><option value="IN_PROGRESS">IN PROGRESS</option><option value="RESOLVED">RESOLVED</option></> : <><option>ACTIVE</option><option>PENDING</option><option>IN_PROGRESS</option><option>RESOLVED</option><option>RELEASED</option></>}
+                  {kind === "HELPLINE" ? <><option value="PENDING">Pending</option><option value="RESOLVED">Resolved</option></> : <><option>ACTIVE</option><option>PENDING</option><option>IN_PROGRESS</option><option>RESOLVED</option><option>RELEASED</option></>}
                 </select>
               </label>
             </div>

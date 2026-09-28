@@ -10,7 +10,7 @@ const fieldKeys: Record<string, string[]> = {
   SKIN_RECIPIENT: ["CR No.", "UHID", "Age", "Sex", "Address", "Mobile No.", "Indication for Transplant", "Size of Graft Transplanted"],
   SKIN_DONOR: ["Donor NOTTO ID", "Age", "Sex", "Address", "CR No.", "UHID", "Type of Death (BSD/DCD/NATURAL)", "Amount of Skin Retrieved", "Next of Kin Name", "Next of Kin Address", "Next of Kin Contact No."],
   LEPROSY: ["Age", "Sex", "Address", "Mobile No.", "Aadhaar Card No.", "Samagra ID", "Ayushman Card", "Diagnosis", "Date of Admission", "Date of Surgery", "Bank Account No.", "Bank Name", "Amount Released", "Amount"],
-  HELPLINE: ["Diagnosis", "Mobile", "Address", "Source", "Source Record", "Description", "Resolved At"],
+  HELPLINE: ["Patient ID", "Diagnosis", "Mobile", "Address", "Ward / Bed", "Description", "Resolved At"],
 };
 const moduleFor = (kind: string) =>
   kind.startsWith("SKIN_")
@@ -71,6 +71,8 @@ export async function GET(request: Request) {
       }>
     ).map((x) => ({
       ...x,
+      // CM Helpline now has only Pending/Resolved; older "In progress" cases count as Pending.
+      status: kind === "HELPLINE" && x.status === "IN_PROGRESS" ? "PENDING" : x.status,
       payload: (() => {
         const p = decryptPayload(JSON.parse(String(x.payload)) as Record<string, unknown>);
         // Only Admins see Aadhaar / bank account numbers in full.
@@ -153,20 +155,30 @@ export async function POST(request: Request) {
       const access = await requirePermission("CM_HELPLINE", "CREATE");
       if (isResponse(access)) return access;
       const rejected=rejectCrossSiteMutation(request)??enforceRequestSize(request,64*1024)??rateLimit(access,"helpline-link",30,60_000);if(rejected)return rejected;
-      const patientId = Number(b.patientId),
-        source = String(b.source ?? "").toUpperCase(),
+      // CM Helpline cases are raised from the Ward only. The ward stay decides
+      // the patient, diagnosis and bed, so the client cannot mix up patients.
+      const source = String(b.source ?? "").toUpperCase(),
         sourceRecordId = Number(b.sourceRecordId || 0),
         description = String(b.description ?? "").trim();
-      if (!patientId || !["OPD", "IPD"].includes(source))
-        return jsonError("Valid patient and source are required.");
+      if (source !== "WARD" || !sourceRecordId)
+        return jsonError("CM Helpline cases can be added from the Ward only.");
       const db = getDopsDb(),
         now = new Date().toISOString();
+      const stay = await db
+        .prepare(
+          `SELECT i.patient_id AS "patientId", i.diagnosis, w.ward_name AS "wardName", w.bed_number AS "bedNumber"
+             FROM ward_stays w JOIN ipd_admissions i ON i.id = w.ipd_id WHERE w.id = ?`,
+        )
+        .bind(sourceRecordId)
+        .first<{ patientId: number; diagnosis: string; wardName: string; bedNumber: string }>();
+      if (!stay) return jsonError("Ward record not found.", 404);
+      const patientId = Number(stay.patientId);
       const patient = await db
         .prepare(
-          "SELECT id,name,mobile,address FROM patients WHERE id=? AND deleted_at IS NULL",
+          "SELECT id,name,patient_code AS \"patientCode\",mobile,address FROM patients WHERE id=? AND deleted_at IS NULL",
         )
         .bind(patientId)
-        .first<{ id: number; name: string; mobile: string; address: string }>();
+        .first<{ id: number; name: string; patientCode: string; mobile: string; address: string }>();
       if (!patient) return jsonError("Patient not found.", 404);
       const existing = await db
         .prepare(
@@ -179,26 +191,15 @@ export async function POST(request: Request) {
           "This patient already has an active CM Helpline case.",
           409,
         );
-      const diagnosisRow =
-        source === "IPD"
-          ? await db
-              .prepare(
-                "SELECT diagnosis FROM ipd_admissions WHERE patient_id=? AND (?=0 OR id=?) ORDER BY id DESC LIMIT 1",
-              )
-              .bind(patientId, sourceRecordId, sourceRecordId)
-              .first<{ diagnosis: string }>()
-          : await db
-              .prepare(
-                "SELECT diagnosis FROM opd_visits WHERE patient_id=? AND (?=0 OR id=?) AND deleted_at IS NULL ORDER BY id DESC LIMIT 1",
-              )
-              .bind(patientId, sourceRecordId, sourceRecordId)
-              .first<{ diagnosis: string }>();
+      const diagnosisRow = { diagnosis: stay.diagnosis };
       const payload = JSON.stringify({
+        "Patient ID": patient.patientCode,
         Diagnosis: diagnosisRow?.diagnosis ?? "",
         Mobile: patient.mobile,
         Address: patient.address,
+        "Ward / Bed": `${stay.wardName} / ${stay.bedNumber}`,
         Source: source,
-        "Source Record": sourceRecordId || "Latest",
+        "Source Record": sourceRecordId,
         Description: description,
         "Resolved At": "",
       });
@@ -224,10 +225,10 @@ export async function POST(request: Request) {
       recordDate = String(b.recordDate ?? ""),
       primaryName = String(b.primaryName ?? "").trim(),
       status = String(b.status ?? "ACTIVE"),
-      patientId = b.patientId ? Number(b.patientId) : null,
       rawPayload = b.payload ?? {},
       db = getDopsDb(),
       now = new Date().toISOString();
+    let patientId: number | null = b.patientId ? Number(b.patientId) : null;
     if (!kinds.includes(kind) || !recordDate || !primaryName)
       return jsonError("Complete required fields.");
     if (kind === "LEPROSY" && id && rawPayload && typeof rawPayload === "object") {
@@ -254,28 +255,23 @@ export async function POST(request: Request) {
     let savedName = primaryName;
     let savedPayload = rawPayload as Record<string, unknown>;
     if (kind === "HELPLINE") {
-      if (!patientId) return jsonError("Select an existing OPD/IPD patient.");
-      if (!["PENDING", "IN_PROGRESS", "RESOLVED"].includes(status)) return jsonError("Invalid CM Helpline status.");
-      const linked = await db.prepare(`SELECT p.name,p.mobile,p.address,
-        (SELECT id FROM ipd_admissions WHERE patient_id=p.id ORDER BY id DESC LIMIT 1) AS ipdId,
-        (SELECT diagnosis FROM ipd_admissions WHERE patient_id=p.id ORDER BY id DESC LIMIT 1) AS ipdDiagnosis,
-        (SELECT id FROM opd_visits WHERE patient_id=p.id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) AS opdId,
-        (SELECT diagnosis FROM opd_visits WHERE patient_id=p.id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) AS opdDiagnosis
-        FROM patients p WHERE p.id=? AND p.deleted_at IS NULL`).bind(patientId).first<{ name: string; mobile: string; address: string; ipdId: number | null; ipdDiagnosis: string | null; opdId: number | null; opdDiagnosis: string | null }>();
-      if (!linked) return jsonError("Patient not found.", 404);
-      const duplicate = await db.prepare("SELECT id FROM special_records WHERE kind='HELPLINE' AND patient_id=? AND id!=? AND deleted_at IS NULL AND status!='RESOLVED' LIMIT 1").bind(patientId, id).first();
-      if (duplicate && status !== "RESOLVED") return jsonError("This patient already has an active CM Helpline case.", 409);
-      const source = linked.ipdId ? "IPD" : "OPD";
-      const previousResolvedAt = String(savedPayload["Resolved At"] ?? "");
-      savedName = linked.name;
+      // Cases are created from the Ward (action "link_helpline"). Editing only
+      // changes the status and description; the linked details stay as recorded.
+      if (!id) return jsonError("CM Helpline cases are added from the Ward.");
+      if (!["PENDING", "RESOLVED"].includes(status)) return jsonError("Status must be Pending or Resolved.");
+      const current = await db.prepare("SELECT primary_name AS \"primaryName\",patient_id AS \"patientId\",payload FROM special_records WHERE id=? AND kind='HELPLINE' AND deleted_at IS NULL").bind(id).first<{ primaryName: string; patientId: number | null; payload: string }>();
+      if (!current) return jsonError("CM Helpline case not found.", 404);
+      const stored = JSON.parse(String(current.payload)) as Record<string, unknown>;
+      if (current.patientId && status !== "RESOLVED") {
+        const duplicate = await db.prepare("SELECT id FROM special_records WHERE kind='HELPLINE' AND patient_id=? AND id!=? AND deleted_at IS NULL AND status!='RESOLVED' LIMIT 1").bind(current.patientId, id).first();
+        if (duplicate) return jsonError("This patient already has an active CM Helpline case.", 409);
+      }
+      savedName = current.primaryName;
+      patientId = current.patientId; // never re-link a case to another patient
       savedPayload = {
-        Diagnosis: linked.ipdDiagnosis ?? linked.opdDiagnosis ?? "",
-        Mobile: linked.mobile,
-        Address: linked.address,
-        Source: source,
-        "Source Record": linked.ipdId ?? linked.opdId ?? "Latest",
-        Description: String(savedPayload.Description ?? "").trim(),
-        "Resolved At": status === "RESOLVED" ? previousResolvedAt || now : "",
+        ...stored,
+        Description: String(savedPayload.Description ?? stored.Description ?? "").trim(),
+        "Resolved At": status === "RESOLVED" ? String(stored["Resolved At"] || "") || now : "",
       };
     }
     let payload: string;
