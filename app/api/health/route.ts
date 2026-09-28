@@ -35,6 +35,11 @@ const MIGRATION_TABLES: Record<string, string> = {
   "003_search_indexes.sql": "idx_patients_name_trgm",
   "004_job_runs.sql": "job_runs",
 };
+// Migrations that change columns rather than add tables: SQL returning "present".
+const MIGRATION_QUERIES: Record<string, string> = {
+  "005_optional_academic_pdf.sql":
+    "SELECT is_nullable = 'YES' AS present FROM information_schema.columns WHERE table_schema='public' AND table_name='academic_documents' AND column_name='file_key'",
+};
 
 type Check = { ok: boolean; detail?: string; ms?: number; skipped?: boolean };
 
@@ -114,6 +119,10 @@ export async function GET(request: Request) {
       const missing: string[] = [];
       for (const [file, table] of Object.entries(MIGRATION_TABLES)) {
         const row = await getDopsDb().prepare("SELECT to_regclass(?) IS NOT NULL AS present").bind(`public.${table}`).first<{ present: boolean }>();
+        if (!row?.present) missing.push(file);
+      }
+      for (const [file, query] of Object.entries(MIGRATION_QUERIES)) {
+        const row = await getDopsDb().prepare(query).first<{ present: boolean }>();
         if (!row?.present) missing.push(file);
       }
       if (missing.length) throw new Error(`not applied: ${missing.join(", ")}`);

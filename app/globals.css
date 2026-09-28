@@ -2010,3 +2010,7 @@ body {
     height: 120px;
   }
 }
+
+/* Academic entries without a PDF yet */
+.doc-content .doc-no-pdf { color: #b45309; font-weight: 600; }
+.doc-file-hint { display: block; margin-top: 4px; color: #64748b; font-size: 0.8rem; }

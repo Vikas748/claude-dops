@@ -18,7 +18,7 @@ with sync_playwright() as p:
     pg.wait_for_selector("text=Enter your code"); time.sleep(0.3); pg.keyboard.type(latest_code()); pg.wait_for_url("http://localhost:3100/"); pg.wait_for_load_state("networkidle")
     # --- Class PDF ---
     nav(pg,"Class"); pg.click("text=Add Class"); pg.fill("input[name=title]","Local flaps – basics"); pg.fill("input[name=doctorName]","Dr Mehta")
-    pg.fill("input[name=documentDate]","2026-09-27"); pg.set_input_files("input[name=file]",F+"lecture.pdf"); pg.click("button:has-text('Upload PDF')")
+    pg.fill("input[name=documentDate]","2026-09-27"); pg.set_input_files("input[name=file]",F+"lecture.pdf"); pg.click("[role=dialog] button:has-text('Save')")
     pg.wait_for_selector("text=Local flaps – basics",timeout=15000); time.sleep(0.5)
     ok(sql("select count(*) from academic_documents")=="1", "UI1 Class: PDF uploaded through the form, listed in the table")
     pg.screenshot(path="/tmp/shots/u-1-class.png")

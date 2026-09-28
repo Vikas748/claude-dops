@@ -19,6 +19,7 @@ Requirements: Linux, PostgreSQL 14+ running locally, `pnpm`, `openssl`, Python 3
 | `enc` | Aadhaar/bank encryption, masking, masked edits, history permission |
 | `audit2` | Audit detail, append-only audit log across restores |
 | `ui`, `ui2`, `sess`, `ui_up`, `greet` | Browser: sign-in on desktop/mobile, session expiry, uploads, backup/restore screens, greeting |
+| `step2` | Optional PDF for Class/Research/Publication; edit, add or replace the PDF later; permissions |
 | `step1` | Client changes round 1: header/sidebar text, CM Helpline from Ward only, Pending/Resolved, Leprosy summary, register switching |
 
 The mocks follow the request/response formats of Supabase Storage and SMTP, but they are not the real services: after deploying, also run `/api/health?deep=1` (see `docs/VERCEL_DEPLOYMENT.md`).

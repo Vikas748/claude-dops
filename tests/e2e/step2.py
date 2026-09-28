@@ -1,0 +1,53 @@
+import os
+# Client change round 1, step 2: optional PDF for Class/Research/Publication, edit + add/replace PDF later
+exec(open('/tmp/up.py').read().split("# ---------- setup ----------")[0])
+from playwright.sync_api import sync_playwright
+admin=web_login("head.dept@hospital.in")
+def docs(kind): return call("GET",f"/api/academic?kind={kind}",cookie=admin)[1]["data"]
+base={"kind":"CLASS","title":"Z-plasty principles","doctorName":"Dr Mehta","documentDate":"2026-09-28"}
+c,d,_=call("POST","/api/academic",base,cookie=admin); cid=d["data"]["id"]
+ok(c==201 and docs("CLASS")[0]["fileKey"] is None, f"A1 Class created without a PDF -> {c}")
+uid,_=upload(admin,F+"lecture.pdf","application/pdf",{"purpose":"ACADEMIC","kind":"RESEARCH"})
+c,_,_=call("POST","/api/academic",{**base,"kind":"RESEARCH","title":"Flap survival study","uploadId":uid},cookie=admin); ok(c==201 and docs("RESEARCH")[0]["fileKey"], "A2 Research created with a PDF (still works)")
+c,_,_=call("POST","/api/academic",{**base,"kind":"PUBLICATION","title":"Case report"},cookie=admin); ok(c==201, "A3 Publication created without a PDF")
+uid,_=upload(admin,F+"lecture.pdf","application/pdf",{"purpose":"ACADEMIC","kind":"CLASS"})
+c,d,_=call("PATCH","/api/academic",{**base,"id":cid,"uploadId":uid},cookie=admin); first=docs("CLASS")[0]["fileKey"]
+ok(c==200 and first, f"A4 PDF added later with Edit -> {c}")
+uid,_=upload(admin,F+"lecture.pdf","application/pdf",{"purpose":"ACADEMIC","kind":"CLASS"})
+c,d,_=call("PATCH","/api/academic",{**base,"id":cid,"title":"Z-plasty principles (revised)","uploadId":uid},cookie=admin); second=docs("CLASS")[0]
+ok(c==200 and second["fileKey"]!=first and second["title"].endswith("(revised)") and ("dops-private/"+first) in objects(), "A5 PDF replaced + title edited; old PDF kept in storage for restores")
+aud=sql(f"select string_agg(details,' || ' order by id) from audit_logs where module='CLASS' and record_id={cid}")
+ok("no PDF yet" in aud and "PDF added" in aud and "PDF replaced" in aud and "title" in aud, f"A6 audit trail: {aud[:170]}")
+before=docs("CLASS")[0]["fileKey"]; uid,_=upload(admin,F+"fake.pdf","application/pdf",{"purpose":"ACADEMIC","kind":"CLASS"})
+c,d,_=call("PATCH","/api/academic",{**base,"id":cid,"uploadId":uid},cookie=admin); ok(c==400 and docs("CLASS")[0]["fileKey"]==before, f"A7 fake PDF on edit refused, record unchanged -> {c}: {d['message']}")
+c,d,_=call("PATCH","/api/academic",{**base,"id":cid,"kind":"RESEARCH"},cookie=admin); ok(c==400, f"A8 type cannot be changed -> {c}")
+call("POST","/api/admin",{"name":"Resident","email":"res@hospital.in","role":"RESIDENT","status":"ACTIVE","permissions":["CLASS:VIEW","CLASS:CREATE"]},cookie=admin)
+res=web_login("res@hospital.in"); c,d,_=call("PATCH","/api/academic",{**base,"id":cid},cookie=res); ok(c==403, f"A9 user without CLASS:EDIT cannot edit -> {c}")
+c,_,_=call("POST","/api/academic",{**base,"title":"Resident notes"},cookie=res); ok(c==201, "A10 same user can still add a Class")
+def nav(pg,x): pg.locator("[data-sidebar=menu-button]").filter(has_text=re.compile(f"^\\s*{x}\\s*$")).first.click(); time.sleep(1.2)
+with sync_playwright() as p:
+    b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None); ctx=b.new_context(viewport={"width":1366,"height":860}); pg=ctx.new_page()
+    fresh(); pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]","head.dept@hospital.in"); pg.click("text=Send code"); pg.wait_for_selector("text=Enter your code"); time.sleep(0.3)
+    pg.keyboard.type(last_code()[0]); pg.wait_for_url("http://localhost:3100/"); time.sleep(1)
+    nav(pg,"Class"); pg.click("button:has-text('Add Class')"); time.sleep(0.5)
+    ok("optional" in pg.inner_text("[role=dialog]").lower(), "B1 dialog says the PDF is optional")
+    pg.fill("[role=dialog] input[name=title]","Skin graft basics"); pg.fill("[role=dialog] input[name=doctorName]","Dr Rao"); pg.fill("[role=dialog] input[name=documentDate]","2026-09-28")
+    pg.click("[role=dialog] button:has-text('Save')"); pg.wait_for_selector("text=Skin graft basics",timeout=10000); time.sleep(0.8)
+    card=pg.locator(".document-card").filter(has_text="Skin graft basics")
+    ok(card.locator("text=No PDF yet").count()==1 and card.locator("button:has-text('Add PDF')").count()==1, "B2 saved without PDF: card shows 'No PDF yet' and 'Add PDF'")
+    pg.screenshot(path="/tmp/shots/s2-nopdf.png")
+    card.locator("button:has-text('Add PDF')").click(); time.sleep(0.5)
+    ok(pg.input_value("[role=dialog] input[name=title]")=="Skin graft basics" and "No PDF uploaded yet" in pg.inner_text("[role=dialog]"), "B3 Add PDF opens Edit, pre-filled")
+    pg.set_input_files("[role=dialog] input[name=file]",F+"lecture.pdf"); pg.click("[role=dialog] button:has-text('Save')")
+    pg.wait_for_function("!document.querySelector('[role=dialog]')",timeout=15000); time.sleep(1)
+    card=pg.locator(".document-card").filter(has_text="Skin graft basics")
+    ok(card.locator("a:has-text('PDF')").count()==1 and card.locator("text=lecture.pdf").count()==1, "B4 after upload the card shows the PDF")
+    with ctx.expect_page() as np_: card.locator("a:has-text('PDF')").click()
+    ok("storage/v1/object/sign" in np_.value.url, "B5 PDF opens from storage"); np_.value.close()
+    card.locator("button[aria-label='Edit Skin graft basics']").click(); time.sleep(0.5)
+    ok("Current: lecture.pdf" in pg.inner_text("[role=dialog]") and "Replace PDF" in pg.inner_text("[role=dialog]"), "B6 Edit shows current PDF and offers replacement")
+    pg.fill("[role=dialog] input[name=title]","Skin graft basics (updated)"); pg.click("[role=dialog] button:has-text('Save')"); pg.wait_for_selector("text=Skin graft basics (updated)",timeout=10000)
+    ok(True, "B7 title edited from the card")
+    pg.screenshot(path="/tmp/shots/s2-cards.png")
+    b.close()
+print(f"TOTAL: {R['pass']} passed, {R['fail']} failed")

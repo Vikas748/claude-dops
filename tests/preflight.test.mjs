@@ -64,7 +64,7 @@ test("Skin Bank supports protected custom columns, formulas and row history", ()
 test("PostgreSQL migrations are ordered and safe to re-run", () => {
   const dir = join(root, "supabase/migrations");
   const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
-  assert.deepEqual(files, ["001_email_otp_auth.sql", "002_direct_uploads.sql", "003_search_indexes.sql", "004_job_runs.sql"]);
+  assert.deepEqual(files, ["001_email_otp_auth.sql", "002_direct_uploads.sql", "003_search_indexes.sql", "004_job_runs.sql", "005_optional_academic_pdf.sql"]);
   for (const file of files) {
     const sql = readFileSync(join(dir, file), "utf8").toLowerCase();
     for (const m of sql.matchAll(/create (table|index|unique index|extension|schema) (?!if not exists)/g)) assert.fail(`${file}: "${m[0]}" is not idempotent`);
@@ -305,4 +305,16 @@ test("audit log records who changed what, covers exports, and survives restores"
   const system = read("app/api/admin/system/route.ts");
   assert.match(system, /if \(table !== "audit_logs"\) statements\.push\(db\.prepare\(`DELETE FROM/);
   assert.match(system, /WHERE NOT EXISTS \(SELECT 1 FROM audit_logs/);
+});
+
+test("Class / Research / Publication: PDF optional at creation, added or replaced later", () => {
+  const route = read("app/api/academic/route.ts");
+  const ui = read("components/academic-module.tsx");
+  assert.match(route, /export async function PATCH/);
+  assert.match(route, /requirePermission\(d\.kind, "EDIT"\)/);
+  assert.match(route, /const file = b\.uploadId\s*\?/); // upload is optional
+  assert.doesNotMatch(route, /select a PDF/i);
+  assert.match(ui, /method: editing \? "PATCH" : "POST"/);
+  assert.doesNotMatch(ui, /accept="application\/pdf,\.pdf"\s*required/);
+  assert.match(read("supabase/migrations/005_optional_academic_pdf.sql"), /alter column file_key\s+drop not null/);
 });

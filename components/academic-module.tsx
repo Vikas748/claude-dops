@@ -4,6 +4,7 @@ import { uploadDirect } from "@/lib/direct-upload";
 import {
   ExternalLink,
   FileText,
+  Pencil,
   Plus,
   Search,
   Trash2,
@@ -19,13 +20,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+const hasFileMessage = (module: string) => `${module} added.`;
+
 type Doc = {
   id: number;
   title: string;
   doctorName: string;
   documentDate: string;
-  fileKey: string;
-  fileName: string;
+  fileKey: string | null;
+  fileName: string | null;
   externalUrl: string | null;
 };
 export function AcademicModule({
@@ -38,6 +41,7 @@ export function AcademicModule({
   const [docs, setDocs] = useState<Doc[]>([]),
     [q, setQ] = useState(""),
     [open, setOpen] = useState(false),
+    [editing, setEditing] = useState<Doc | null>(null),
     [saving, setSaving] = useState(false),
     [loading, setLoading] = useState(true);
   const kind = module.toUpperCase();
@@ -68,19 +72,21 @@ export function AcademicModule({
     setSaving(true);
     try {
       const f = new FormData(e.currentTarget),
-        file = f.get("file");
-      if (!(file instanceof File) || !file.size) throw new Error("Select a PDF to upload.");
-      // The PDF goes straight to storage; the API then receives only the details.
-      const uploadId = await uploadDirect(file, { purpose: "ACADEMIC", kind });
+        file = f.get("file"),
+        hasFile = file instanceof File && file.size > 0;
+      // The PDF is optional. If chosen, it goes straight to storage first and
+      // the API then receives only the details plus the uploadId.
+      const uploadId = hasFile ? await uploadDirect(file as File, { purpose: "ACADEMIC", kind }) : undefined;
       const r = await fetch("/api/academic", {
-          method: "POST",
+          method: editing ? "PATCH" : "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
+            id: editing?.id,
             kind,
             title: f.get("title"),
             doctorName: f.get("doctorName"),
             documentDate: f.get("documentDate"),
-            externalUrl: f.get("externalUrl") ?? "",
+            externalUrl: f.get("externalUrl") ?? editing?.externalUrl ?? "",
             uploadId,
           }),
         }),
@@ -88,9 +94,9 @@ export function AcademicModule({
       if (!r.ok) throw new Error(j.message);
       setOpen(false);
       await load();
-      notify(`${module} document uploaded.`);
+      notify(editing ? `${module} updated.` : hasFileMessage(module));
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Upload failed.");
+      notify(e instanceof Error ? e.message : "Could not save.");
     } finally {
       setSaving(false);
     }
@@ -117,7 +123,7 @@ export function AcademicModule({
                 : "Published work, journal PDFs and external links."}
           </p>
         </div>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => { setEditing(null); setOpen(true); }}>
           <Plus /> Add {module}
         </Button>
       </section>
@@ -142,17 +148,20 @@ export function AcademicModule({
                 <span>{d.documentDate}</span>
                 <h3>{d.title}</h3>
                 <p>{d.doctorName}</p>
-                <small>{d.fileName}</small>
+                {d.fileKey ? <small>{d.fileName}</small> : <small className="doc-no-pdf">No PDF yet</small>}
               </div>
               <div className="doc-actions">
-                <Button asChild variant="outline" size="sm">
-                  <a
-                    href={`/api/files?key=${encodeURIComponent(d.fileKey)}`}
-                    target="_blank"
-                  >
-                    <FileText /> PDF
-                  </a>
-                </Button>
+                {d.fileKey ? (
+                  <Button asChild variant="outline" size="sm">
+                    <a href={`/api/files?key=${encodeURIComponent(d.fileKey)}`} target="_blank">
+                      <FileText /> PDF
+                    </a>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => { setEditing(d); setOpen(true); }}>
+                    <Upload /> Add PDF
+                  </Button>
+                )}
                 {d.externalUrl && (
                   <Button asChild variant="outline" size="icon-sm">
                     <a href={d.externalUrl} target="_blank" rel="noreferrer">
@@ -163,6 +172,15 @@ export function AcademicModule({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  aria-label={`Edit ${d.title}`}
+                  onClick={() => { setEditing(d); setOpen(true); }}
+                >
+                  <Pencil />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remove ${d.title}`}
                   onClick={() => remove(d.id)}
                 >
                   <Trash2 />
@@ -174,9 +192,9 @@ export function AcademicModule({
           <div className="empty-state">
             <Upload />
             <h3>No {module.toLowerCase()} documents yet</h3>
-            <p>Upload the first PDF to create the departmental archive.</p>
-            <Button onClick={() => setOpen(true)}>
-              <Plus /> Add document
+            <p>Add the first entry. The PDF can be uploaded now or later.</p>
+            <Button onClick={() => { setEditing(null); setOpen(true); }}>
+              <Plus /> Add {module}
             </Button>
           </div>
         )}
@@ -184,24 +202,24 @@ export function AcademicModule({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add {module} document</DialogTitle>
+            <DialogTitle>{editing ? `Edit ${module}` : `Add ${module}`}</DialogTitle>
             <DialogDescription>
-              PDFs are stored privately and listed by date.
+              {editing ? "Change the details, or upload / replace the PDF." : "The PDF is optional. You can upload it later with Edit."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={submit}>
+          <form key={editing?.id ?? "new"} onSubmit={submit}>
             <div className="dialog-fields">
               <label>
                 {module === "Class" ? "Topic name" : "Title"}
-                <Input name="title" required />
+                <Input name="title" defaultValue={editing?.title ?? ""} required />
               </label>
               <label>
                 Doctor name
-                <Input name="doctorName" required />
+                <Input name="doctorName" defaultValue={editing?.doctorName ?? ""} required />
               </label>
               <label>
                 Date
-                <Input type="date" name="documentDate" required />
+                <Input type="date" name="documentDate" defaultValue={editing?.documentDate ?? ""} required />
               </label>
               {module === "Publication" && (
                 <label>
@@ -209,18 +227,17 @@ export function AcademicModule({
                   <Input
                     type="url"
                     name="externalUrl"
+                    defaultValue={editing?.externalUrl ?? ""}
                     placeholder="https://..."
                   />
                 </label>
               )}
               <label>
-                PDF document
-                <Input
-                  type="file"
-                  name="file"
-                  accept="application/pdf,.pdf"
-                  required
-                />
+                {editing?.fileKey ? "Replace PDF (optional)" : "PDF document (optional)"}
+                <Input type="file" name="file" accept="application/pdf,.pdf" />
+                {editing && (
+                  <small className="doc-file-hint">{editing.fileKey ? `Current: ${editing.fileName}` : "No PDF uploaded yet."}</small>
+                )}
               </label>
             </div>
             <DialogFooter className="mt-6">
@@ -232,7 +249,7 @@ export function AcademicModule({
                 Cancel
               </Button>
               <Button disabled={saving} type="submit">
-                {saving ? "Uploading…" : "Upload PDF"}
+                {saving ? "Saving…" : "Save"}
               </Button>
             </DialogFooter>
           </form>
