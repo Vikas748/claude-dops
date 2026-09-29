@@ -66,6 +66,13 @@ export default function LoginPage() {
       .then((r) => r.json())
       .then(async (j) => {
         const d = j?.data ?? {};
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("locked") && !d.sessionActive) {
+          // Sent here as "locked", but the session itself is gone (expired, signed
+          // out elsewhere, deactivated): clear the dead cookie and say so.
+          await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+          setNotice({ text: "Your session has ended. Sign in again to continue.", tone: "info" });
+        }
         if (d.sessionActive && d.unlocked && alreadyOpen) return enterApp();
         if (d.sessionActive && d.unlocked)
           // Opened again (new tab / launch): lock, then ask for the PIN.

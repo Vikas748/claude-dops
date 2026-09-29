@@ -32,8 +32,8 @@ with sync_playwright() as p:
     ctx=b.new_context(); pg=ctx.new_page(); navs=[]
     pg.on("framenavigated", lambda f: navs.append(f.url) if f==pg.main_frame else None)
     ctx.add_cookies([{"name":"dops_session","value":"stale-token-from-old-deploy","url":"http://localhost:3100"}])
-    pg.goto("http://localhost:3100/"); pg.wait_for_url("**/login?expired=1", timeout=10000); time.sleep(4)
-    ok(pg.url.endswith("/login?expired=1") and len(navs)<=4, f"A stale cookie -> {pg.url} after {len(navs)} navigations, then stable 4s (no loop)")
+    pg.goto("http://localhost:3100/"); pg.wait_for_url("**/login?**", timeout=10000); time.sleep(4)
+    ok("/login?" in pg.url and len(navs)<=4, f"A stale cookie -> {pg.url} after {len(navs)} navigations, then stable 4s (no loop)")
     ok(session_cookie(ctx)==[], "A stale cookie cleared from browser")
     ok("Your session has ended" in pg.inner_text(".auth-message"), f"A notice: '{pg.inner_text('.auth-message')}'")
     pg.screenshot(path="/tmp/shots/expired.png")
