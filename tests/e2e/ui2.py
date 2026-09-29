@@ -1,12 +1,19 @@
 import os
 import glob, email, re, time
 from playwright.sync_api import sync_playwright
+def skip_pin(pg, timeout=15000):
+    """After the email code, DOPS offers to set a PIN; these tests choose "Skip for now"."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set a quick PIN')", timeout=timeout)
+    if "Set a quick PIN" in pg.inner_text("body"):
+        pg.click("text=Skip for now")
+        pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
 def latest_code():
     f=sorted(glob.glob("/tmp/mails/*.eml"))[-1]; return re.match(r"(\d{6})", email.message_from_bytes(open(f,'rb').read())["Subject"]).group(1)
 ok=lambda c,m: print(("PASS " if c else "FAIL ")+m)
 def login(pg, addr):
     pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]", addr); pg.click("text=Send code")
-    pg.wait_for_selector("text=Enter your code"); time.sleep(0.3); pg.keyboard.type(latest_code()); pg.wait_for_url("http://localhost:3100/"); pg.wait_for_load_state("networkidle")
+    pg.wait_for_selector("text=Enter your code"); time.sleep(0.3); pg.keyboard.type(latest_code()); skip_pin(pg); pg.wait_for_load_state("networkidle")
 def session_cookie(ctx): return [c["value"] for c in ctx.cookies() if c["name"]=="dops_session"]
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)

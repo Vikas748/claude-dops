@@ -2046,3 +2046,6 @@ body {
   .login-card h1 { font-size: 1.9rem; }
 }
 @media (max-width: 420px) { .login-row { grid-template-columns: 1fr; } }
+
+.pin-slot { width: 3.2rem !important; height: 3.4rem !important; font-size: 1.5rem !important; }
+.login-switch-small { margin-top: 10px; font-size: .88rem; }

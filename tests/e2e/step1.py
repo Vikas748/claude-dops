@@ -1,5 +1,12 @@
 import os
 # Client change request round 1: branding text, CM Helpline from Ward only, statuses, Leprosy summary, register switching
+def skip_pin(pg, timeout=15000):
+    """After the email code, DOPS offers to set a PIN; these tests choose "Skip for now"."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set a quick PIN')", timeout=timeout)
+    if "Set a quick PIN" in pg.inner_text("body"):
+        pg.click("text=Skip for now")
+        pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
 exec(open('/tmp/up.py').read().split("# ---------- setup ----------")[0])
 from playwright.sync_api import sync_playwright
 admin=web_login("head.dept@hospital.in")
@@ -16,7 +23,7 @@ def nav(pg,x): pg.locator("[data-sidebar=menu-button]").filter(has_text=re.compi
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None); pg=b.new_page(viewport={"width":1366,"height":860})
     fresh(); pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]","head.dept@hospital.in"); pg.click("text=Send code"); pg.wait_for_selector("text=Enter your code"); time.sleep(0.3)
-    pg.keyboard.type(last_code()[0]); pg.wait_for_url("http://localhost:3100/"); pg.wait_for_load_state("networkidle"); time.sleep(1)
+    pg.keyboard.type(last_code()[0]); skip_pin(pg); pg.wait_for_load_state("networkidle"); time.sleep(1)
     body=pg.inner_text("body")
     ok("PLASTIC & RECONSTRUCTIVE SURGERY" in body and "NSCB MEDICAL COLLEGE, JABALPUR" in body, "P2 header shows both lines in capitals")
     hdr=pg.evaluate("[...document.querySelectorAll('header span, header strong')].map(e=>e.tagName+':'+e.innerText).join(' | ')")

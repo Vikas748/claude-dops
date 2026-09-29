@@ -64,7 +64,7 @@ test("Skin Bank supports protected custom columns, formulas and row history", ()
 test("PostgreSQL migrations are ordered and safe to re-run", () => {
   const dir = join(root, "supabase/migrations");
   const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
-  assert.deepEqual(files, ["001_email_otp_auth.sql", "002_direct_uploads.sql", "003_search_indexes.sql", "004_job_runs.sql", "005_optional_academic_pdf.sql"]);
+  assert.deepEqual(files, ["001_email_otp_auth.sql", "002_direct_uploads.sql", "003_search_indexes.sql", "004_job_runs.sql", "005_optional_academic_pdf.sql", "006_device_pins.sql"]);
   for (const file of files) {
     const sql = readFileSync(join(dir, file), "utf8").toLowerCase();
     for (const m of sql.matchAll(/create (table|index|unique index|extension|schema) (?!if not exists)/g)) assert.fail(`${file}: "${m[0]}" is not idempotent`);
@@ -331,4 +331,17 @@ test("brand, landing page and account requests", () => {
   assert.match(read("proxy.ts"), /brand\//); // logo must load before sign-in
   assert.equal(existsSync(join(root, "public/brand/dops-logo-full.png")), true);
   assert.match(read("public/manifest.webmanifest"), /icon-512\.png/);
+});
+
+test("device PIN: bound to the device, hashed, locked after 5 attempts", () => {
+  const lib = read("lib/device-pin.ts");
+  const route = read("app/api/auth/pin/route.ts");
+  assert.match(lib, /scryptSync/);
+  assert.match(lib, /httpOnly: true/);
+  assert.match(lib, /WHERE id = \? AND locked_at IS NULL/); // attempt is claimed before the PIN is checked
+  assert.match(lib, /PIN_MAX_ATTEMPTS = 5/);
+  assert.match(route, /device\.status !== "ACTIVE"/);
+  assert.match(route, /weakPinReason/);
+  assert.match(read("app/api/auth/verify-otp/route.ts"), /offerPin/);
+  assert.match(read("app/login/page.tsx"), /Skip for now/);
 });

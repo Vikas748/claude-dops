@@ -1,6 +1,7 @@
 import { getDopsDb, jsonError } from "@/lib/dops-db";
 import { createSession, isValidEmail, normaliseEmail, otpMatches, type SessionClient } from "@/lib/auth";
 import { maskEmail } from "@/lib/mailer";
+import { currentDevice } from "@/lib/device-pin";
 import { enforceRequestSize, rejectCrossSiteMutation } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
@@ -94,8 +95,15 @@ export async function POST(request: Request) {
     ]);
     console.info(`Sign-in: ${maskEmail(email)} (${client})`);
 
+    // Offer a quick-sign-in PIN unless this browser already has a working one for this user.
+    let offerPin = false;
+    if (client === "WEB") {
+      const device = await currentDevice().catch(() => null);
+      offerPin = !device || device.userId !== Number(user.id) || device.locked;
+    }
     return Response.json({
       success: true,
+      offerPin,
       user: { name: user.name, role: user.role },
       // Only mobile clients receive the raw token; web uses the httpOnly cookie.
       ...(client === "MOBILE" ? { token: session.token, expiresAt: session.expiresAt } : {}),

@@ -1,5 +1,12 @@
 import glob, email, re, time, os, subprocess, json, urllib.request
 from playwright.sync_api import sync_playwright
+def skip_pin(pg, timeout=15000):
+    """After the email code, DOPS offers to set a PIN; these tests choose "Skip for now"."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set a quick PIN')", timeout=timeout)
+    if "Set a quick PIN" in pg.inner_text("body"):
+        pg.click("text=Skip for now")
+        pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
 exec(open('/tmp/flow.py').read().split("ok=lambda")[0])
 def ok(c,m): print(("PASS " if c else "FAIL ")+m)
 def code():
@@ -8,7 +15,7 @@ def nav(pg,x): pg.locator("[data-sidebar=menu-button]").filter(has_text=re.compi
 def login(pg, addr):
     sql("update auth_otps set created_at=created_at - interval '3 hours'")
     pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]",addr); pg.click("text=Send code")
-    pg.wait_for_selector("text=Enter your code"); time.sleep(0.3); pg.keyboard.type(code()); pg.wait_for_url("http://localhost:3100/"); pg.wait_for_load_state("networkidle")
+    pg.wait_for_selector("text=Enter your code"); time.sleep(0.3); pg.keyboard.type(code()); skip_pin(pg); pg.wait_for_load_state("networkidle")
 # admin (API) creates a nurse
 sql("update auth_otps set created_at=created_at - interval '3 hours'")
 call("POST","/api/auth/request-otp",{"email":"head.dept@hospital.in"}); c0,_=last_code()

@@ -2,12 +2,13 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ArrowLeft, Mail, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, KeyRound, Mail, ShieldCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
-type Step = "email" | "code" | "request" | "requested";
+type Step = "email" | "code" | "request" | "requested" | "pin" | "setpin";
+type PinDevice = { name: string; email: string } | null;
 type Notice = { text: string; tone: "info" | "error" } | null;
 
 async function postJson(url: string, body: unknown) {
@@ -33,12 +34,31 @@ export default function LoginPage() {
   const [cooldown, setCooldown] = useState(0);
   const verifying = useRef(false);
   const codeInput = useRef<HTMLInputElement>(null);
+  const pinInput = useRef<HTMLInputElement>(null);
+  const [pin, setPin] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
+  const [pinDevice, setPinDevice] = useState<PinDevice>(null);
 
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setTimeout(() => setCooldown((seconds) => seconds - 1), 1000);
     return () => clearTimeout(timer);
   }, [cooldown]);
+
+  // Does this browser have a PIN? Then offer "Welcome back — enter your PIN".
+  useEffect(() => {
+    fetch("/api/auth/pin", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.data?.enabled) {
+          setPinDevice({ name: j.data.name, email: j.data.email });
+          setStep((current) => (current === "email" ? "pin" : current));
+        } else if (j?.data?.locked) {
+          setNotice({ text: "Your PIN is locked after too many attempts. Sign in with your email code to set a new one.", tone: "info" });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Arrived here because a session ended (expired, signed out elsewhere, or access changed).
   useEffect(() => {
@@ -50,6 +70,7 @@ export default function LoginPage() {
   // enabled again (after a wrong code or "Resend code"), put the cursor back in it.
   useEffect(() => {
     if (step === "code" && !busy) codeInput.current?.focus();
+    if ((step === "pin" || step === "setpin") && !busy) pinInput.current?.focus();
   }, [step, busy]);
 
   async function requestCode() {
@@ -80,6 +101,15 @@ export default function LoginPage() {
     setNotice(null);
     const result = await postJson("/api/auth/verify-otp", { email, code: value });
     if (result.ok) {
+      if (result.data.offerPin) {
+        verifying.current = false;
+        setBusy(false);
+        setNotice(null);
+        setPin("");
+        setPinConfirm("");
+        setStep("setpin");
+        return;
+      }
       setNotice({ text: "Signed in. Opening DOPS…", tone: "info" });
       // Full navigation so the new session cookie is used everywhere.
       window.location.replace("/");
@@ -100,6 +130,53 @@ export default function LoginPage() {
     setStep("email");
     setCode("");
     setNotice(null);
+  }
+
+  async function pinLogin(value: string) {
+    if (busy || value.length !== 4) return;
+    setBusy(true);
+    setNotice(null);
+    const result = await postJson("/api/auth/pin", { action: "login", pin: value });
+    if (result.ok) {
+      setNotice({ text: "Signed in. Opening DOPS…", tone: "info" });
+      window.location.replace("/");
+      return;
+    }
+    setBusy(false);
+    setPin("");
+    setNotice({ text: String(result.data.message ?? "Sign-in failed. Try again."), tone: "error" });
+    if (result.status === 423 || result.status === 403) {
+      setPinDevice(null);
+      setStep("email");
+    }
+  }
+
+  async function savePin(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    if (pin.length !== 4 || pinConfirm.length !== 4) return setNotice({ text: "Enter the 4-digit PIN twice.", tone: "error" });
+    setBusy(true);
+    setNotice(null);
+    const result = await postJson("/api/auth/pin", { action: "setup", pin, confirm: pinConfirm });
+    if (result.ok) {
+      setNotice({ text: "PIN saved. Opening DOPS…", tone: "info" });
+      window.location.replace("/");
+      return;
+    }
+    setBusy(false);
+    setNotice({ text: String(result.data.message ?? "Could not save the PIN."), tone: "error" });
+  }
+
+  function switchToEmail() {
+    setPin("");
+    setNotice(null);
+    setStep("email");
+  }
+
+  async function forgetThisDevice() {
+    await fetch("/api/auth/pin", { method: "DELETE" }).catch(() => {});
+    setPinDevice(null);
+    switchToEmail();
   }
 
   function openRequest() {
@@ -131,7 +208,8 @@ export default function LoginPage() {
   }
 
   const heading =
-    step === "code" ? "Enter your code" : step === "request" ? "Request an account" : step === "requested" ? "Request sent" : "Sign in";
+    step === "code" ? "Enter your code" : step === "request" ? "Request an account" : step === "requested" ? "Request sent"
+    : step === "pin" ? `Welcome back${pinDevice ? `, ${pinDevice.name}` : ""}` : step === "setpin" ? "Set a quick PIN" : "Sign in";
 
   return <main className="login-shell">
     <aside className="login-hero" aria-label="DOPS">
@@ -150,6 +228,38 @@ export default function LoginPage() {
       <div className="login-card auth-card">
         <p className="login-eyebrow">{step === "request" || step === "requested" ? "NEW USER" : "SECURE ACCESS"}</p>
         <h1>{heading}</h1>
+
+        {step === "pin" && <>
+          <p className="login-sub">Enter your 4-digit PIN for <strong>{pinDevice?.email}</strong>.</p>
+          <form onSubmit={(event) => { event.preventDefault(); void pinLogin(pin); }}>
+            <label htmlFor="pin-code">PIN</label>
+            <InputOTP id="pin-code" ref={pinInput} maxLength={4} value={pin} onChange={(v) => setPin(v.replace(/\D/g, ""))} onComplete={(v: string) => void pinLogin(v)}
+              pattern="^[0-9]*$" inputMode="numeric" disabled={busy} containerClassName="auth-otp" autoFocus>
+              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" aria-invalid={notice?.tone === "error" || undefined} />)}</InputOTPGroup>
+            </InputOTP>
+            {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
+            <Button className="login-primary" disabled={busy || pin.length !== 4}><KeyRound /> {busy ? "Signing in…" : "Sign in with PIN"}</Button>
+          </form>
+          <p className="login-switch"><button type="button" onClick={switchToEmail}>Forgot PIN? Use email code</button></p>
+          <p className="login-switch login-switch-small">Not you? <button type="button" onClick={() => void forgetThisDevice()}>Remove PIN from this device</button></p>
+        </>}
+
+        {step === "setpin" && <>
+          <p className="login-sub">Next time on <strong>this device</strong>, sign in with a 4-digit PIN instead of an email code. Skip this on a shared computer.</p>
+          <form onSubmit={savePin}>
+            <label htmlFor="pin-new">New PIN</label>
+            <InputOTP id="pin-new" ref={pinInput} maxLength={4} value={pin} onChange={(v) => setPin(v.replace(/\D/g, ""))} pattern="^[0-9]*$" inputMode="numeric" disabled={busy} containerClassName="auth-otp">
+              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" />)}</InputOTPGroup>
+            </InputOTP>
+            <label htmlFor="pin-confirm">Confirm PIN</label>
+            <InputOTP id="pin-confirm" maxLength={4} value={pinConfirm} onChange={(v) => setPinConfirm(v.replace(/\D/g, ""))} pattern="^[0-9]*$" inputMode="numeric" disabled={busy} containerClassName="auth-otp">
+              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" />)}</InputOTPGroup>
+            </InputOTP>
+            {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
+            <Button className="login-primary" disabled={busy || pin.length !== 4 || pinConfirm.length !== 4}><KeyRound /> {busy ? "Saving…" : "Save PIN"}</Button>
+          </form>
+          <p className="login-switch"><button type="button" onClick={() => window.location.replace("/")}>Skip for now</button></p>
+        </>}
 
         {step === "email" && <>
           <p className="login-sub">Sign in with a one-time code sent to your email.</p>

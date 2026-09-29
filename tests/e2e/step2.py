@@ -1,5 +1,12 @@
 import os
 # Client change round 1, step 2: optional PDF for Class/Research/Publication, edit + add/replace PDF later
+def skip_pin(pg, timeout=15000):
+    """After the email code, DOPS offers to set a PIN; these tests choose "Skip for now"."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set a quick PIN')", timeout=timeout)
+    if "Set a quick PIN" in pg.inner_text("body"):
+        pg.click("text=Skip for now")
+        pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
 exec(open('/tmp/up.py').read().split("# ---------- setup ----------")[0])
 from playwright.sync_api import sync_playwright
 admin=web_login("head.dept@hospital.in")
@@ -28,7 +35,7 @@ def nav(pg,x): pg.locator("[data-sidebar=menu-button]").filter(has_text=re.compi
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None); ctx=b.new_context(viewport={"width":1366,"height":860}); pg=ctx.new_page()
     fresh(); pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]","head.dept@hospital.in"); pg.click("text=Send code"); pg.wait_for_selector("text=Enter your code"); time.sleep(0.3)
-    pg.keyboard.type(last_code()[0]); pg.wait_for_url("http://localhost:3100/"); time.sleep(1)
+    pg.keyboard.type(last_code()[0]); skip_pin(pg); time.sleep(1)
     nav(pg,"Class"); pg.click("button:has-text('Add Class')"); time.sleep(0.5)
     ok("optional" in pg.inner_text("[role=dialog]").lower(), "B1 dialog says the PDF is optional")
     pg.fill("[role=dialog] input[name=title]","Skin graft basics"); pg.fill("[role=dialog] input[name=doctorName]","Dr Rao"); pg.fill("[role=dialog] input[name=documentDate]","2026-09-28")

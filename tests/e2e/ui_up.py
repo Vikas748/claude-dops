@@ -1,6 +1,13 @@
 import os
 import glob, email, re, time, json, zipfile, io, subprocess, urllib.request
 from playwright.sync_api import sync_playwright
+def skip_pin(pg, timeout=15000):
+    """After the email code, DOPS offers to set a PIN; these tests choose "Skip for now"."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set a quick PIN')", timeout=timeout)
+    if "Set a quick PIN" in pg.inner_text("body"):
+        pg.click("text=Skip for now")
+        pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
 R={"p":0,"f":0}
 def ok(c,m): R["p" if c else "f"]+=1; print(("PASS " if c else "FAIL ")+m)
 def sql(q): return subprocess.run(["su","postgres","-c",f"psql -tAc \"{q}\""],capture_output=True,text=True).stdout.strip()
@@ -15,7 +22,7 @@ with sync_playwright() as p:
     errors=[]; pg.on("console", lambda m: errors.append(m.text) if m.type=="error" else None)
     sql("update auth_otps set created_at=created_at - interval '3 hours'")
     pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]","head.dept@hospital.in"); pg.click("text=Send code")
-    pg.wait_for_selector("text=Enter your code"); time.sleep(0.3); pg.keyboard.type(latest_code()); pg.wait_for_url("http://localhost:3100/"); pg.wait_for_load_state("networkidle")
+    pg.wait_for_selector("text=Enter your code"); time.sleep(0.3); pg.keyboard.type(latest_code()); skip_pin(pg); pg.wait_for_load_state("networkidle")
     # --- Class PDF ---
     nav(pg,"Class"); pg.click("text=Add Class"); pg.fill("input[name=title]","Local flaps – basics"); pg.fill("input[name=doctorName]","Dr Mehta")
     pg.fill("input[name=documentDate]","2026-09-27"); pg.set_input_files("input[name=file]",F+"lecture.pdf"); pg.click("[role=dialog] button:has-text('Save')")

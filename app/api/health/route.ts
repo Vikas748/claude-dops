@@ -34,6 +34,7 @@ const MIGRATION_TABLES: Record<string, string> = {
   "002_direct_uploads.sql": "upload_intents",
   "003_search_indexes.sql": "idx_patients_name_trgm",
   "004_job_runs.sql": "job_runs",
+  "006_device_pins.sql": "auth_devices",
 };
 // Migrations that change columns rather than add tables: SQL returning "present".
 const MIGRATION_QUERIES: Record<string, string> = {
