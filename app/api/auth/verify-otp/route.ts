@@ -1,7 +1,7 @@
 import { getDopsDb, jsonError } from "@/lib/dops-db";
-import { createSession, isValidEmail, normaliseEmail, otpMatches, type SessionClient } from "@/lib/auth";
+import { createSession, isValidEmail, normaliseEmail, otpMatches, unlockSession, type SessionClient } from "@/lib/auth";
 import { maskEmail } from "@/lib/mailer";
-import { currentDevice } from "@/lib/device-pin";
+import { currentDevice, issuePinSetupTicket } from "@/lib/device-pin";
 import { enforceRequestSize, rejectCrossSiteMutation } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
@@ -95,15 +95,20 @@ export async function POST(request: Request) {
     ]);
     console.info(`Sign-in: ${maskEmail(email)} (${client})`);
 
-    // Offer a quick-sign-in PIN unless this browser already has a working one for this user.
-    let offerPin = false;
+    // PIN is mandatory on the web. If this browser already has this user's working
+    // PIN, the email code unlocks the app now; otherwise the user must set a PIN
+    // first (allowed for 10 minutes by a setup ticket) and the app stays locked.
+    let requirePin = false;
     if (client === "WEB") {
       const device = await currentDevice().catch(() => null);
-      offerPin = !device || device.userId !== Number(user.id) || device.locked;
+      requirePin = !device || device.userId !== Number(user.id) || device.locked;
+      if (requirePin) await issuePinSetupTicket(session.sessionId);
+      else await unlockSession(session.sessionId);
     }
     return Response.json({
       success: true,
-      offerPin,
+      requirePin,
+      offerPin: requirePin, // older clients
       user: { name: user.name, role: user.role },
       // Only mobile clients receive the raw token; web uses the httpOnly cookie.
       ...(client === "MOBILE" ? { token: session.token, expiresAt: session.expiresAt } : {}),

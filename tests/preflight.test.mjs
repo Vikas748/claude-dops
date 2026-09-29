@@ -50,14 +50,13 @@ test("core clinical and governance tables remain in the PostgreSQL schema", () =
   for (const table of tables) assert.match(schema, new RegExp(`create table if not exists ${table}\\b`), `${table} missing from supabase/schema.sql`);
 });
 
-test("Skin Bank supports protected custom columns, formulas and row history", () => {
+test("Skin Bank supports protected custom columns and row history (no formula box)", () => {
   const route = read("app/api/special/columns/route.ts");
   const special = read("app/api/special/route.ts");
   const component = read("components/special-module.tsx");
   assert.match(route, /Official proforma columns are protected/);
   assert.match(special, /special_record_versions/);
-  assert.match(component, /SUM/);
-  assert.match(component, /AVERAGE/);
+  assert.doesNotMatch(component, /Basic formula/); // removed at the client's request
   assert.match(component, /Row version history/);
 });
 
@@ -343,5 +342,20 @@ test("device PIN: bound to the device, hashed, locked after 5 attempts", () => {
   assert.match(route, /device\.status !== "ACTIVE"/);
   assert.match(route, /weakPinReason/);
   assert.match(read("app/api/auth/verify-otp/route.ts"), /offerPin/);
-  assert.match(read("app/login/page.tsx"), /Skip for now/);
+  assert.doesNotMatch(read("app/login/page.tsx"), /Skip for now/); // PIN is mandatory
+});
+
+test("app lock: PIN on every open, enforced by the server", () => {
+  const auth = read("lib/auth.ts");
+  const access = read("lib/access.ts");
+  const guard = read("components/session-guard.tsx");
+  const pin = read("app/api/auth/pin/route.ts");
+  assert.match(auth, /UNLOCK_COOKIE = "dops_unlock"/);
+  assert.match(auth, /no maxAge \/ expires: a session cookie/);
+  assert.match(access, /DOPS is locked\. Enter your PIN to continue\.", 423/);
+  assert.match(guard, /sessionStorage/);
+  assert.match(guard, /response\.status === 423/);
+  assert.match(pin, /hasPinSetupTicket\(user\.sessionId\)/); // a locked device cannot set a new PIN without a fresh email code
+  assert.match(read("app/api/auth/verify-otp/route.ts"), /requirePin/);
+  assert.doesNotMatch(read("proxy.ts"), /signedIn && publicAuthPage/);
 });

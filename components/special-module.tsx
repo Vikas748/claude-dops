@@ -90,9 +90,7 @@ export function SpecialModule({
     [columnOpen, setColumnOpen] = useState(false),
     [columnName, setColumnName] = useState(""),
     [columnType, setColumnType] = useState<"TEXT" | "NUMBER">("TEXT"),
-    [history, setHistory] = useState<Version[] | null>(null),
-    [formulaField, setFormulaField] = useState(""),
-    [formulaOperation, setFormulaOperation] = useState<"SUM" | "AVERAGE" | "COUNT">("SUM");
+    [history, setHistory] = useState<Version[] | null>(null);
   const reportMonth = /^\d{4}-\d{2}$/.test(month)
       ? month
       : new Date().toISOString().slice(0, 7),
@@ -175,9 +173,6 @@ export function SpecialModule({
     if (!r.ok) return notify(j.message);
     setHistory(j.data);
   }
-  const numericFields = [...new Set(["Age", "Amount", "Amount of Skin Retrieved", "Size of Graft Transplanted", ...customColumns.filter((column) => column.dataType === "NUMBER").map((column) => column.name)])].filter((field) => totalFields.includes(field));
-  const formulaValues = rows.map((row) => Number(row.payload[formulaField])).filter(Number.isFinite);
-  const formulaResult = formulaOperation === "COUNT" ? formulaValues.length : formulaOperation === "AVERAGE" ? (formulaValues.length ? formulaValues.reduce((sum, value) => sum + value, 0) / formulaValues.length : 0) : formulaValues.reduce((sum, value) => sum + value, 0);
   const leprosyReleased = rows.filter((row) => row.payload["Amount Released"] === "YES");
   async function remove(id: number) {
     if (!confirm("Remove this row?")) return;
@@ -334,14 +329,6 @@ export function SpecialModule({
           </div>
         )}
       </article>
-      {(module === "Skin Bank" || kind === "LEPROSY") && numericFields.length > 0 && (
-        <section className="register-formula panel">
-          <strong>Basic formula</strong>
-          <select value={formulaField} onChange={(event) => setFormulaField(event.target.value)}><option value="">Select numeric column</option>{numericFields.map((field) => <option key={field}>{field}</option>)}</select>
-          <select value={formulaOperation} onChange={(event) => setFormulaOperation(event.target.value as typeof formulaOperation)}><option>SUM</option><option>AVERAGE</option><option>COUNT</option></select>
-          <span>{formulaField ? `${formulaOperation}(${formulaField}) = ${Number.isInteger(formulaResult) ? formulaResult : formulaResult.toFixed(2)}` : "Choose a column"}</span>
-        </section>
-      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[680px]">
           <DialogHeader>

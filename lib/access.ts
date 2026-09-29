@@ -1,4 +1,4 @@
-import { getSessionUser, revokeAllSessions } from "@/lib/auth";
+import { getSessionUser, isUnlocked, revokeAllSessions } from "@/lib/auth";
 import { jsonError } from "@/lib/dops-db";
 
 export type DopsAccess = {
@@ -31,6 +31,9 @@ export async function getDopsAccess(): Promise<DopsAccess | Response> {
       401,
     );
   }
+  // App lock: a signed-in browser must be unlocked (PIN / email code) each time
+  // the app is opened. 423 tells the client to show the PIN screen, not to sign out.
+  if (!(await isUnlocked(user))) return jsonError("DOPS is locked. Enter your PIN to continue.", 423);
   let permissions: string[] = [];
   try {
     const parsed = JSON.parse(String(user.permissions ?? "[]"));

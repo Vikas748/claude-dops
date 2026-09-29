@@ -143,3 +143,30 @@ export function maskedEmail(email: string) {
   const [local = "", domain = ""] = email.split("@");
   return `${local.slice(0, 1)}***@${domain}`;
 }
+
+// A short-lived proof that the email code was just entered, required to set a
+// PIN on a browser whose app is locked (otherwise anyone holding the locked
+// device could set a new PIN and get in).
+export const PIN_SETUP_COOKIE = "dops_pin_setup";
+const setupValue = (sessionId: number) => createHmac("sha256", process.env.AUTH_SECRET ?? "").update(`pin-setup:${sessionId}`).digest("base64url");
+
+export async function issuePinSetupTicket(sessionId: number) {
+  (await cookies()).set(PIN_SETUP_COOKIE, setupValue(sessionId), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/api/auth/pin",
+    maxAge: 10 * 60,
+  });
+}
+
+export async function hasPinSetupTicket(sessionId: number) {
+  const value = (await cookies()).get(PIN_SETUP_COOKIE)?.value;
+  if (!value) return false;
+  const a = Buffer.from(value), b = Buffer.from(setupValue(sessionId));
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export async function clearPinSetupTicket() {
+  (await cookies()).delete({ name: PIN_SETUP_COOKIE, path: "/api/auth/pin" });
+}

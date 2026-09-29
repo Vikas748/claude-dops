@@ -6,9 +6,8 @@ export function proxy(request: NextRequest) {
   if (!signedIn && !publicAuthPage) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (signedIn && publicAuthPage) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
+  // Signed-in users may still need /login: it is also the app-lock (PIN) screen.
+  // The page itself sends an already-unlocked user on to the dashboard.
   return NextResponse.next();
 }
 

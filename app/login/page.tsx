@@ -6,6 +6,15 @@ import { ArrowLeft, KeyRound, Mail, ShieldCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { OPEN_FLAG } from "@/components/session-guard";
+
+/** Marks this tab as unlocked (see SessionGuard) and opens the dashboard. */
+function enterApp() {
+  try {
+    window.sessionStorage.setItem(OPEN_FLAG, "1");
+  } catch {}
+  window.location.replace("/");
+}
 
 type Step = "email" | "code" | "request" | "requested" | "pin" | "setpin";
 type PinDevice = { name: string; email: string } | null;
@@ -45,16 +54,31 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  // Does this browser have a PIN? Then offer "Welcome back — enter your PIN".
+  // What does this browser have? An unlocked session in this tab -> dashboard.
+  // A PIN on this device -> PIN screen (app lock / quick sign-in).
+  // A signed-in session without a PIN -> email code, then a mandatory PIN.
   useEffect(() => {
+    let alreadyOpen = false;
+    try {
+      alreadyOpen = window.sessionStorage.getItem(OPEN_FLAG) === "1";
+    } catch {}
     fetch("/api/auth/pin", { cache: "no-store" })
       .then((r) => r.json())
-      .then((j) => {
-        if (j?.data?.enabled) {
-          setPinDevice({ name: j.data.name, email: j.data.email });
+      .then(async (j) => {
+        const d = j?.data ?? {};
+        if (d.sessionActive && d.unlocked && alreadyOpen) return enterApp();
+        if (d.sessionActive && d.unlocked)
+          // Opened again (new tab / launch): lock, then ask for the PIN.
+          await fetch("/api/auth/pin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "lock" }) }).catch(() => {});
+        if (d.enabled) {
+          setPinDevice({ name: d.name, email: d.email });
           setStep((current) => (current === "email" ? "pin" : current));
-        } else if (j?.data?.locked) {
+          if (new URLSearchParams(window.location.search).has("locked"))
+            setNotice({ text: "DOPS is locked. Enter your PIN to continue.", tone: "info" });
+        } else if (d.locked) {
           setNotice({ text: "Your PIN is locked after too many attempts. Sign in with your email code to set a new one.", tone: "info" });
+        } else if (d.sessionActive) {
+          setNotice({ text: "For security, confirm with your email code and set a PIN for this device.", tone: "info" });
         }
       })
       .catch(() => {});
@@ -101,7 +125,7 @@ export default function LoginPage() {
     setNotice(null);
     const result = await postJson("/api/auth/verify-otp", { email, code: value });
     if (result.ok) {
-      if (result.data.offerPin) {
+      if (result.data.requirePin) {
         verifying.current = false;
         setBusy(false);
         setNotice(null);
@@ -112,7 +136,7 @@ export default function LoginPage() {
       }
       setNotice({ text: "Signed in. Opening DOPS…", tone: "info" });
       // Full navigation so the new session cookie is used everywhere.
-      window.location.replace("/");
+      enterApp();
       return;
     }
     verifying.current = false;
@@ -139,7 +163,7 @@ export default function LoginPage() {
     const result = await postJson("/api/auth/pin", { action: "login", pin: value });
     if (result.ok) {
       setNotice({ text: "Signed in. Opening DOPS…", tone: "info" });
-      window.location.replace("/");
+      enterApp();
       return;
     }
     setBusy(false);
@@ -160,7 +184,7 @@ export default function LoginPage() {
     const result = await postJson("/api/auth/pin", { action: "setup", pin, confirm: pinConfirm });
     if (result.ok) {
       setNotice({ text: "PIN saved. Opening DOPS…", tone: "info" });
-      window.location.replace("/");
+      enterApp();
       return;
     }
     setBusy(false);
@@ -209,7 +233,7 @@ export default function LoginPage() {
 
   const heading =
     step === "code" ? "Enter your code" : step === "request" ? "Request an account" : step === "requested" ? "Request sent"
-    : step === "pin" ? `Welcome back${pinDevice ? `, ${pinDevice.name}` : ""}` : step === "setpin" ? "Set a quick PIN" : "Sign in";
+    : step === "pin" ? `Welcome back${pinDevice ? `, ${pinDevice.name}` : ""}` : step === "setpin" ? "Set your PIN" : "Sign in";
 
   return <main className="login-shell">
     <aside className="login-hero" aria-label="DOPS">
@@ -245,7 +269,7 @@ export default function LoginPage() {
         </>}
 
         {step === "setpin" && <>
-          <p className="login-sub">Next time on <strong>this device</strong>, sign in with a 4-digit PIN instead of an email code. Skip this on a shared computer.</p>
+          <p className="login-sub">A PIN is required. DOPS asks for it every time it is opened on <strong>this device</strong>, instead of an email code.</p>
           <form onSubmit={savePin}>
             <label htmlFor="pin-new">New PIN</label>
             <InputOTP id="pin-new" ref={pinInput} maxLength={4} value={pin} onChange={(v) => setPin(v.replace(/\D/g, ""))} pattern="^[0-9]*$" inputMode="numeric" disabled={busy} containerClassName="auth-otp">
@@ -258,7 +282,6 @@ export default function LoginPage() {
             {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
             <Button className="login-primary" disabled={busy || pin.length !== 4 || pinConfirm.length !== 4}><KeyRound /> {busy ? "Saving…" : "Save PIN"}</Button>
           </form>
-          <p className="login-switch"><button type="button" onClick={() => window.location.replace("/")}>Skip for now</button></p>
         </>}
 
         {step === "email" && <>

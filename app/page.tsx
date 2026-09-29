@@ -480,7 +480,7 @@ export default function Home() {
             unoptimized
             className="brand-logo"
           />
-          <span>Plastic & Reconstructive Surgery</span>
+          <span>PLASTIC AND RECONSTRUCTIVE SURGERY</span>
         </SidebarHeader>
         <SidebarContent className="px-3">
           <NavGroup
@@ -512,8 +512,8 @@ export default function Home() {
           <div className="topbar-title">
             <SidebarTrigger className="md:hidden" />
             <div>
-              <span>PLASTIC & RECONSTRUCTIVE SURGERY</span>
-              <strong>NSCB MEDICAL COLLEGE, JABALPUR</strong>
+              <strong>PLASTIC AND RECONSTRUCTIVE SURGERY</strong>
+              <span>NSCB MEDICAL COLLEGE, JABALPUR</span>
             </div>
           </div>
           <div className="topbar-actions">
@@ -852,7 +852,7 @@ function greetingFor(userName?: string) {
   const part = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   // The first administrator's name starts as their email address.
   const name = userName.includes("@") ? userName.split("@")[0] : userName;
-  return `${part}, ${name}`;
+  return <>{part}, <span className="greet-name">{name}</span></>;
 }
 
 function Dashboard({

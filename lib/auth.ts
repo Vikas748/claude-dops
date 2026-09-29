@@ -35,6 +35,8 @@ export type SessionUser = {
   role: string;
   status: string;
   permissions: string;
+  /** WEB = browser cookie, MOBILE = Bearer token (the app lock applies to WEB). */
+  client: SessionClient;
 };
 
 function authSecret() {
@@ -83,13 +85,13 @@ export async function createSession(userId: number, client: SessionClient) {
   const h = await headers();
   const row = await getDopsDb()
     .prepare(
-      "INSERT INTO auth_sessions (user_id,token_hash,client,user_agent,ip,expires_at) VALUES (?,?,?,?,?,now() + (? * interval '1 day')) RETURNING expires_at AS expiresAt",
+      "INSERT INTO auth_sessions (user_id,token_hash,client,user_agent,ip,expires_at) VALUES (?,?,?,?,?,now() + (? * interval '1 day')) RETURNING id, expires_at AS expiresAt",
     )
     .bind(userId, hashToken(token), client, (h.get("user-agent") ?? "").slice(0, 300), await clientIp(), AUTH_LIMITS.sessionDays)
-    .first<{ expiresAt: Date }>();
+    .first<{ id: number; expiresAt: Date }>();
   if (client === "WEB")
     (await cookies()).set(SESSION_COOKIE, token, cookieOptions(AUTH_LIMITS.sessionDays * 86_400));
-  return { token, expiresAt: row?.expiresAt ?? null };
+  return { token, sessionId: Number(row?.id), expiresAt: row?.expiresAt ?? null };
 }
 
 async function presentedToken() {
@@ -130,7 +132,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   }
   const { stale: _stale, ...user } = row;
   void _stale;
-  return { ...user, id: Number(user.id), sessionId: Number(user.sessionId) };
+  return { ...user, id: Number(user.id), sessionId: Number(user.sessionId), client: presented.client };
 }
 
 /** Revokes the presented session (logout) and clears the web cookie. */
@@ -149,6 +151,7 @@ export async function revokeCurrentSession() {
         .run();
   }
   (await cookies()).delete(SESSION_COOKIE);
+  (await cookies()).delete(UNLOCK_COOKIE);
 }
 
 /** Revokes every session of a user — used when an admin deactivates them. */
@@ -166,4 +169,48 @@ export async function cleanupAuthTables() {
     db.prepare("DELETE FROM auth_otps WHERE expires_at < now() - interval '1 day'"),
     db.prepare("DELETE FROM auth_sessions WHERE expires_at < now() - interval '7 days' OR revoked_at < now() - interval '7 days'"),
   ]);
+}
+
+// ---------------------------------------------------------------------------
+// App lock (web). The 30-day session keeps the user signed in, but every time
+// the app is opened again it must be unlocked with the device PIN (or an email
+// code). "Unlocked" is a browser-session cookie — no max-age, so the browser
+// drops it when it closes — whose value is bound to the session. The client
+// additionally drops it whenever a new tab / app launch starts (see
+// components/session-guard.tsx). APIs refuse locked sessions with HTTP 423.
+// ---------------------------------------------------------------------------
+export const UNLOCK_COOKIE = "dops_unlock";
+
+function unlockValue(sessionId: number) {
+  return createHmac("sha256", authSecret()).update(`unlock:${sessionId}`).digest("base64url");
+}
+
+export async function isUnlocked(user: SessionUser) {
+  if (user.client !== "WEB") return true;
+  const value = (await cookies()).get(UNLOCK_COOKIE)?.value;
+  if (!value) return false;
+  const expected = Buffer.from(unlockValue(user.sessionId));
+  const given = Buffer.from(value);
+  return expected.length === given.length && timingSafeEqual(expected, given);
+}
+
+/** Marks this browser session unlocked (after a PIN or email code). */
+export async function unlockSession(sessionId: number) {
+  (await cookies()).set(UNLOCK_COOKIE, unlockValue(sessionId), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    // no maxAge / expires: a session cookie, removed when the browser closes
+  });
+}
+
+export async function lockSession() {
+  (await cookies()).delete(UNLOCK_COOKIE);
+}
+
+/** Session id of the session just created in this request (createSession sets it). */
+export async function sessionIdForToken(token: string) {
+  const row = await getDopsDb().prepare("SELECT id FROM auth_sessions WHERE token_hash=?").bind(hashToken(token)).first<{ id: number }>();
+  return row ? Number(row.id) : null;
 }
