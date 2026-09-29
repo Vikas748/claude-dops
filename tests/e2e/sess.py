@@ -1,11 +1,22 @@
 import glob, email, re, time, os, subprocess, json, urllib.request
 from playwright.sync_api import sync_playwright
 def skip_pin(pg, timeout=15000):
-    """After the email code, DOPS offers to set a PIN; these tests choose "Skip for now"."""
-    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set a quick PIN')", timeout=timeout)
-    if "Set a quick PIN" in pg.inner_text("body"):
-        pg.click("text=Skip for now")
+    """After the email code DOPS may require a PIN (mandatory): set 2580, then continue."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set your PIN')", timeout=timeout)
+    if "Set your PIN" in pg.inner_text("body"):
+        pg.locator("#pin-new").focus(); pg.keyboard.type("2580")
+        pg.locator("#pin-confirm").focus(); pg.keyboard.type("2580")
+        pg.click("button:has-text('Save PIN')")
         pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
+def to_email(pg, timeout=6000):
+    """The sign-in page may open on the PIN screen (a PIN exists on this browser); tests use the email code."""
+    try:
+        pg.wait_for_function("document.body.innerText.includes('Send code') || document.body.innerText.includes('Forgot PIN?') || location.pathname === '/'", timeout=timeout)
+    except Exception:
+        return
+    if pg.locator("text=Forgot PIN? Use email code").count():
+        pg.click("text=Forgot PIN? Use email code")
 
 exec(open('/tmp/flow.py').read().split("ok=lambda")[0])
 def ok(c,m): print(("PASS " if c else "FAIL ")+m)
@@ -14,12 +25,12 @@ def code():
 def nav(pg,x): pg.locator("[data-sidebar=menu-button]").filter(has_text=re.compile(f"^\\s*{x}\\s*$")).first.click(); time.sleep(1)
 def login(pg, addr):
     sql("update auth_otps set created_at=created_at - interval '3 hours'")
-    pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]",addr); pg.click("text=Send code")
+    pg.goto("http://localhost:3100/login"); to_email(pg); pg.fill("input[type=email]",addr); pg.click("text=Send code")
     pg.wait_for_selector("text=Enter your code"); time.sleep(0.3); pg.keyboard.type(code()); skip_pin(pg); pg.wait_for_load_state("networkidle")
 # admin (API) creates a nurse
 sql("update auth_otps set created_at=created_at - interval '3 hours'")
 call("POST","/api/auth/request-otp",{"email":"head.dept@hospital.in"}); c0,_=last_code()
-_,_,sc=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":c0}); admin=[x for x in sc if x.startswith("dops_session=")][0].split(";")[0]
+_,_,sc=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":c0}); admin=web_cookie(sc)
 call("POST","/api/admin",{"name":"Nurse Asha","email":"asha@hospital.in","role":"NURSE","status":"ACTIVE","permissions":["OPD:VIEW","WARD:VIEW","CLASS:VIEW"]},cookie=admin)
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)
@@ -41,7 +52,7 @@ with sync_playwright() as p:
     ok(st==403 and pg.url=="http://localhost:3100/", f"S3 forbidden module -> {st}, user stays signed in")
     # S4: wrong code on the login page is a 401 but must not bounce anywhere
     pg2=b.new_context().new_page(); sql("update auth_otps set created_at=created_at - interval '3 hours'")
-    pg2.goto("http://localhost:3100/login"); pg2.fill("input[type=email]","asha@hospital.in"); pg2.click("text=Send code"); pg2.wait_for_selector("text=Enter your code"); time.sleep(0.3)
+    pg2.goto("http://localhost:3100/login"); to_email(pg2); pg2.fill("input[type=email]","asha@hospital.in"); pg2.click("text=Send code"); pg2.wait_for_selector("text=Enter your code"); time.sleep(0.3)
     good=code(); pg2.keyboard.type(f"{(int(good)+1)%1000000:06d}"); pg2.wait_for_selector(".auth-message.is-error"); time.sleep(1)
     ok(pg2.url.endswith("/login") and "Incorrect code" in pg2.inner_text(".auth-message"), "S4 wrong OTP (401) stays on the login page with its error")
     b.close()

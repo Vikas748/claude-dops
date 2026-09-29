@@ -1,4 +1,4 @@
-import { createSession } from "@/lib/auth";
+import { createSession, unlockSession } from "@/lib/auth";
 import { getDopsAccess, isResponse } from "@/lib/access";
 import { getDopsBucket, getDopsDb, jsonError } from "@/lib/dops-db";
 import { claimUploads, createUploadIntent, discardUploads, trackServerFile, UploadError } from "@/lib/uploads";
@@ -167,7 +167,11 @@ export async function POST(request: Request) {
     // department_users) and may renumber user ids. Everyone else signs in
     // again; the admin who ran the restore gets a fresh session right away.
     const restoredSelf = await db.prepare("SELECT id FROM department_users WHERE lower(email)=? AND role='ADMIN' AND status='ACTIVE'").bind(access.email.toLowerCase()).first<{ id: number }>();
-    if (restoredSelf) await createSession(Number(restoredSelf.id), "WEB");
+    if (restoredSelf) {
+      // The admin was unlocked when running the restore; keep the new session unlocked too.
+      const session = await createSession(Number(restoredSelf.id), "WEB");
+      await unlockSession(session.sessionId);
+    }
     return Response.json({ success: true });
   } catch (error) {
     if (error instanceof UploadError) return jsonError(error.message);

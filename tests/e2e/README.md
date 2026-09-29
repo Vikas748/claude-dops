@@ -19,6 +19,7 @@ Requirements: Linux, PostgreSQL 14+ running locally, `pnpm`, `openssl`, Python 3
 | `enc` | Aadhaar/bank encryption, masking, masked edits, history permission |
 | `audit2` | Audit detail, append-only audit log across restores |
 | `ui`, `ui2`, `sess`, `ui_up`, `greet` | Browser: sign-in on desktop/mobile, session expiry, uploads, backup/restore screens, greeting |
+| `step5` | Round 2: app lock (PIN on every open, mandatory PIN, server-enforced 423), black/gold theme, capital sidebar, header weights, no formula box, tablet overflow |
 | `step4` | Device-bound PIN: setup after email code, PIN sign-in, lockout (also under parallel guessing), deactivation, remove from device |
 | `step3` | New logo/icons served publicly, landing sign-in page, request an account, admin notification and approval email |
 | `step2` | Optional PDF for Class/Research/Publication; edit, add or replace the PDF later; permissions |

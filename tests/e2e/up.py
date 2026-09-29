@@ -6,7 +6,7 @@ def ok(c,msg):
 def fresh(): sql("update auth_otps set created_at=created_at - interval '3 hours'")
 def web_login(addr):
     fresh(); call("POST","/api/auth/request-otp",{"email":addr}); code,_=last_code()
-    c,d,sc=call("POST","/api/auth/verify-otp",{"email":addr,"code":code}); return [x for x in sc if x.startswith("dops_session=")][0].split(";")[0]
+    c,d,sc=call("POST","/api/auth/verify-otp",{"email":addr,"code":code}); return web_cookie(sc)
 def raw(method,url,data=None,headers=None,follow=True):
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*a,**k): return None

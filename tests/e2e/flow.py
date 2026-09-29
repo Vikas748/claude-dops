@@ -16,6 +16,16 @@ def mails(): return sorted(glob.glob("/tmp/mails/*.eml"), key=os.path.getmtime)
 def last_code():
     m=email.message_from_bytes(open(mails()[-1],'rb').read()); return re.match(r"(\d{6})", m["Subject"]).group(1), m["To"]
 def age_otps(): sql("update auth_otps set created_at=created_at - interval '2 minutes'")
+def web_cookie(sc):
+    """Cookies for an unlocked web session. With the app lock, a new browser must
+    set its (mandatory) PIN after the email code; that also unlocks the app."""
+    get=lambda sc_,n: next((x.split(";")[0] for x in sc_ if x.startswith(n+"=")),None)
+    sess=get(sc,"dops_session"); unlock=get(sc,"dops_unlock")
+    if unlock: return f"{sess}; {unlock}"
+    ticket=get(sc,"dops_pin_setup")
+    c,d,sc2=call("POST","/api/auth/pin",{"action":"setup","pin":"2580","confirm":"2580"},cookie=f"{sess}; {ticket}")
+    unlock=get(sc2,"dops_unlock")
+    return f"{sess}; {unlock}" if unlock else sess
 ok=lambda c,msg: print(("PASS " if c else "FAIL ")+msg)
 
 c,d,_=call("POST","/api/auth/request-otp",{"email":"stranger@x.com"}); ok(c==200 and len(mails())==0, f"1 unknown email -> {c}, generic reply, no mail sent")
@@ -23,7 +33,7 @@ c,d,_=call("POST","/api/auth/request-otp",{"email":"head.dept@hospital.in"}); co
 c,d,_=call("POST","/api/auth/request-otp",{"email":"head.dept@hospital.in"}); ok(c==429, f"3 immediate resend -> {c}: {d.get('message')}")
 wrong="000000" if code!="000000" else "111111"
 c,d,_=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":wrong}); ok(c==401, f"4 wrong code -> {c}: {d['message']}")
-c,d,sc=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":code}); cookie=[x for x in sc if x.startswith("dops_session=")][0].split(";")[0]
+c,d,sc=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":code}); cookie=web_cookie(sc)
 ok(c==200 and d["user"]["role"]=="ADMIN" and "token" not in d, f"5 correct code -> {c}, role {d['user']['role']}, web gets cookie only (HttpOnly={'HttpOnly' in sc[0]})")
 c,d,_=call("GET","/api/access",cookie=cookie); ok(c==200 and d["data"]["role"]=="ADMIN", f"6 /api/access with cookie -> {c} {d['data']['authMethod']}")
 c,d,_=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":code}); ok(c==401, f"7 reuse same code -> {c}: {d['message']}")
@@ -54,6 +64,6 @@ r=urllib.request.Request(B+"/api/auth/request-otp",data=b'{"email":"a@b.co"}',he
 try: urllib.request.urlopen(r); c=200
 except urllib.error.HTTPError as e: c=e.code
 ok(c==403, f"19 cross-site request blocked -> {c}")
-print("   DB check: otp codes stored in plain?", sql(f"select count(*) from auth_otps where code_hash ~ '^[0-9]{{6}}$'"), "| raw token in DB?", sql(f"select count(*) from auth_sessions where token_hash='{cookie.split('=')[1]}'"))
+print("   DB check: otp codes stored in plain?", sql(f"select count(*) from auth_otps where code_hash ~ '^[0-9]{{6}}$'"), "| raw token in DB?", sql(f"select count(*) from auth_sessions where token_hash='{cookie.split(';')[0].split('=')[1]}'"))
 c,d,_=call("GET","/api/auth/logout",cookie=cookie); c2,_,_=call("GET","/api/access",cookie=cookie); ok(c2==401, f"20 logout -> old cookie now {c2}")
 print("   audit:", sql("select string_agg(action,', ' order by id) from audit_logs where module='AUTH'"))

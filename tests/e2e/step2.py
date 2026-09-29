@@ -1,11 +1,22 @@
 import os
 # Client change round 1, step 2: optional PDF for Class/Research/Publication, edit + add/replace PDF later
 def skip_pin(pg, timeout=15000):
-    """After the email code, DOPS offers to set a PIN; these tests choose "Skip for now"."""
-    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set a quick PIN')", timeout=timeout)
-    if "Set a quick PIN" in pg.inner_text("body"):
-        pg.click("text=Skip for now")
+    """After the email code DOPS may require a PIN (mandatory): set 2580, then continue."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set your PIN')", timeout=timeout)
+    if "Set your PIN" in pg.inner_text("body"):
+        pg.locator("#pin-new").focus(); pg.keyboard.type("2580")
+        pg.locator("#pin-confirm").focus(); pg.keyboard.type("2580")
+        pg.click("button:has-text('Save PIN')")
         pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
+def to_email(pg, timeout=6000):
+    """The sign-in page may open on the PIN screen (a PIN exists on this browser); tests use the email code."""
+    try:
+        pg.wait_for_function("document.body.innerText.includes('Send code') || document.body.innerText.includes('Forgot PIN?') || location.pathname === '/'", timeout=timeout)
+    except Exception:
+        return
+    if pg.locator("text=Forgot PIN? Use email code").count():
+        pg.click("text=Forgot PIN? Use email code")
 
 exec(open('/tmp/up.py').read().split("# ---------- setup ----------")[0])
 from playwright.sync_api import sync_playwright
@@ -34,7 +45,7 @@ c,_,_=call("POST","/api/academic",{**base,"title":"Resident notes"},cookie=res);
 def nav(pg,x): pg.locator("[data-sidebar=menu-button]").filter(has_text=re.compile(f"^\\s*{x}\\s*$")).first.click(); time.sleep(1.2)
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None); ctx=b.new_context(viewport={"width":1366,"height":860}); pg=ctx.new_page()
-    fresh(); pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]","head.dept@hospital.in"); pg.click("text=Send code"); pg.wait_for_selector("text=Enter your code"); time.sleep(0.3)
+    fresh(); pg.goto("http://localhost:3100/login"); to_email(pg); pg.fill("input[type=email]","head.dept@hospital.in"); pg.click("text=Send code"); pg.wait_for_selector("text=Enter your code"); time.sleep(0.3)
     pg.keyboard.type(last_code()[0]); skip_pin(pg); time.sleep(1)
     nav(pg,"Class"); pg.click("button:has-text('Add Class')"); time.sleep(0.5)
     ok("optional" in pg.inner_text("[role=dialog]").lower(), "B1 dialog says the PDF is optional")

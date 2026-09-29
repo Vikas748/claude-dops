@@ -1,5 +1,23 @@
 import os
 # Client change round 1, step 3: logo/icons, landing sign-in page, request an account + approval
+def skip_pin(pg, timeout=15000):
+    """After the email code DOPS may require a PIN (mandatory): set 2580, then continue."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set your PIN')", timeout=timeout)
+    if "Set your PIN" in pg.inner_text("body"):
+        pg.locator("#pin-new").focus(); pg.keyboard.type("2580")
+        pg.locator("#pin-confirm").focus(); pg.keyboard.type("2580")
+        pg.click("button:has-text('Save PIN')")
+        pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
+def to_email(pg, timeout=6000):
+    """The sign-in page may open on the PIN screen (a PIN exists on this browser); tests use the email code."""
+    try:
+        pg.wait_for_function("document.body.innerText.includes('Send code') || document.body.innerText.includes('Forgot PIN?') || location.pathname === '/'", timeout=timeout)
+    except Exception:
+        return
+    if pg.locator("text=Forgot PIN? Use email code").count():
+        pg.click("text=Forgot PIN? Use email code")
+
 exec(open('/tmp/up.py').read().split("# ---------- setup ----------")[0])
 import email as em, glob
 from playwright.sync_api import sync_playwright
@@ -33,7 +51,7 @@ ok("ACCOUNT_REQUEST" in sql("select string_agg(action,',') from audit_logs"), "R
 # ---- browser: landing page ----
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None); pg=b.new_page(viewport={"width":1440,"height":860})
-    pg.goto("http://localhost:3100/login"); time.sleep(1.2)
+    pg.goto("http://localhost:3100/login"); to_email(pg); time.sleep(1.2)
     ok(pg.evaluate("(()=>{const i=document.querySelector('.login-logo');return i&&i.complete&&i.naturalWidth>0})()"), "B1 logo loads on the sign-in page")
     t=pg.inner_text("body"); ok("Plastic & Reconstructive Surgery Department Management" in t and "NSCB MEDICAL COLLEGE, JABALPUR" in t and "Request an account" in t, "B2 landing content: heading, college, request link")
     pg.click("text=Request an account"); pg.fill("input[name=name]","Nurse Kavita"); pg.fill("form input[name=email]","kavita@hospital.in"); pg.fill("input[name=mobile]","9812300001"); pg.select_option("select[name=role]","NURSE")

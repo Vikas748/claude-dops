@@ -1,11 +1,22 @@
 import os
 # Client change request round 1: branding text, CM Helpline from Ward only, statuses, Leprosy summary, register switching
 def skip_pin(pg, timeout=15000):
-    """After the email code, DOPS offers to set a PIN; these tests choose "Skip for now"."""
-    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set a quick PIN')", timeout=timeout)
-    if "Set a quick PIN" in pg.inner_text("body"):
-        pg.click("text=Skip for now")
+    """After the email code DOPS may require a PIN (mandatory): set 2580, then continue."""
+    pg.wait_for_function("location.pathname === '/' || document.body.innerText.includes('Set your PIN')", timeout=timeout)
+    if "Set your PIN" in pg.inner_text("body"):
+        pg.locator("#pin-new").focus(); pg.keyboard.type("2580")
+        pg.locator("#pin-confirm").focus(); pg.keyboard.type("2580")
+        pg.click("button:has-text('Save PIN')")
         pg.wait_for_url("http://localhost:3100/", timeout=timeout)
+
+def to_email(pg, timeout=6000):
+    """The sign-in page may open on the PIN screen (a PIN exists on this browser); tests use the email code."""
+    try:
+        pg.wait_for_function("document.body.innerText.includes('Send code') || document.body.innerText.includes('Forgot PIN?') || location.pathname === '/'", timeout=timeout)
+    except Exception:
+        return
+    if pg.locator("text=Forgot PIN? Use email code").count():
+        pg.click("text=Forgot PIN? Use email code")
 
 exec(open('/tmp/up.py').read().split("# ---------- setup ----------")[0])
 from playwright.sync_api import sync_playwright
@@ -22,7 +33,7 @@ c,d,_=call("POST","/api/special",{"kind":"HELPLINE","recordDate":"2026-09-28","p
 def nav(pg,x): pg.locator("[data-sidebar=menu-button]").filter(has_text=re.compile(f"^\\s*{x}\\s*$")).first.click(); time.sleep(1.2)
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None); pg=b.new_page(viewport={"width":1366,"height":860})
-    fresh(); pg.goto("http://localhost:3100/login"); pg.fill("input[type=email]","head.dept@hospital.in"); pg.click("text=Send code"); pg.wait_for_selector("text=Enter your code"); time.sleep(0.3)
+    fresh(); pg.goto("http://localhost:3100/login"); to_email(pg); pg.fill("input[type=email]","head.dept@hospital.in"); pg.click("text=Send code"); pg.wait_for_selector("text=Enter your code"); time.sleep(0.3)
     pg.keyboard.type(last_code()[0]); skip_pin(pg); pg.wait_for_load_state("networkidle"); time.sleep(1)
     body=pg.inner_text("body")
     ok("PLASTIC & RECONSTRUCTIVE SURGERY" in body and "NSCB MEDICAL COLLEGE, JABALPUR" in body, "P2 header shows both lines in capitals")

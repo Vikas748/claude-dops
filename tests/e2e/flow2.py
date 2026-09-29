@@ -2,7 +2,7 @@ exec(open('/tmp/flow.py').read().split("ok=lambda")[0])
 ok=lambda c,msg: print(("PASS " if c else "FAIL ")+msg)
 sql("update auth_otps set created_at=created_at - interval '2 hours'")
 call("POST","/api/auth/request-otp",{"email":"head.dept@hospital.in"}); code,_=last_code()
-c,d,sc=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":code}); cookie=[x for x in sc if x.startswith("dops_session=")][0].split(";")[0]
+c,d,sc=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":code}); cookie=web_cookie(sc)
 c,d,_=call("POST","/api/admin",{"name":"Dr Two","email":"dr.two@hospital.in","role":"DOCTOR","status":"ACTIVE","permissions":["OPD:VIEW","OPD:CREATE","BAD:PERM"]},cookie=cookie)
 call("POST","/api/auth/request-otp",{"email":"dr.two@hospital.in"}); code,_=last_code()
 c,d,_=call("POST","/api/auth/verify-otp",{"email":"dr.two@hospital.in","code":code,"client":"MOBILE"}); tok=d["token"]

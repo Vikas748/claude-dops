@@ -26,8 +26,9 @@ c,d,_=call("POST","/api/admin/system",{"action":"restorePackageUrl","size":len(p
 s,_,_=raw("PUT",d["data"]["uploadUrl"],pkg,{"content-type":"application/json"})
 c,d,sc=call("POST","/api/admin/system",{"action":"restore","uploadId":d["data"]["uploadId"]},cookie=admin)
 newc=[x for x in sc if x.startswith("dops_session=")]
-ok(c==200 and newc, f"B5 restore ({len(snap['files'])} files, well over the old 6/min limit) -> {c}, admin re-issued session")
-admin=newc[0].split(";")[0]
+unlock=[x.split(";")[0] for x in sc if x.startswith("dops_unlock=")]
+ok(c==200 and newc and unlock, f"B5 restore ({len(snap['files'])} files, well over the old 6/min limit) -> {c}, admin re-issued session")
+admin=newc[0].split(";")[0]+("; "+unlock[0] if unlock else "")
 names=sql("select string_agg(name,',') from patients"); back=sql(f"select count(*) from ot_images where id={victim['id']} and deleted_at is null")
 ok("Added After Backup" not in names and back=="1", f"B6 data rolled back: extra patient gone, deleted OT image record back ({back})")
 s,b,h=raw("GET",B+"/api/files?key="+urllib.parse.quote(victim["fileKey"]),headers={"cookie":admin})
