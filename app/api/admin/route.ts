@@ -1,3 +1,4 @@
+import { sendMail } from "@/lib/mailer";
 import { getDopsDb, jsonError } from "@/lib/dops-db";
 import { getDopsAccess, isResponse } from "@/lib/access";
 import { actorDetails, enforceRequestSize, rateLimit, rejectCrossSiteMutation } from "@/lib/security";
@@ -7,6 +8,7 @@ const actions = ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT"];
 const validPermissions = new Set(
   modules.flatMap((module) => actions.map((action) => `${module}:${action}`)),
 );
+const escapeHtml = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 async function current() {
   const access = await getDopsAccess();
   if (isResponse(access)) return null;
@@ -111,6 +113,16 @@ export async function POST(request: Request) {
       if (added.length) parts.push(`permissions added: ${added.join(", ")}`);
       if (removed.length) parts.push(`permissions removed: ${removed.join(", ")}`);
       change = `${email}: ${parts.join("; ") || "no changes"}`;
+      // Let the person know their access is ready (e.g. an approved account request).
+      if (before.status !== "ACTIVE" && status === "ACTIVE") {
+        const origin = new URL(request.url).origin;
+        await sendMail({
+          to: email,
+          subject: "Your DOPS access is ready",
+          text: `Hello ${name},\n\nYour DOPS account has been approved.\n\nSign in at ${origin} with this email address. A 6-digit sign-in code will be emailed to you each time.\n\nDOPS — Department of Plastic & Reconstructive Surgery`,
+          html: `<div style="font-family:Segoe UI,Arial,sans-serif;color:#0f1b2d"><p>Hello ${escapeHtml(name)},</p><p>Your DOPS account has been approved.</p><p><a href="${escapeHtml(origin)}" style="display:inline-block;background:#10264a;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Sign in to DOPS</a></p><p style="color:#5f6b7e;font-size:13px">Use this email address. A 6-digit sign-in code will be emailed to you each time.</p></div>`,
+        }).catch((error) => console.error("Approval email failed", error));
+      }
     } else {
       const created = await db
         .prepare(

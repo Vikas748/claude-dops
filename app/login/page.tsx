@@ -1,12 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { KeyRound, Mail } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, Mail, ShieldCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
-type Step = "email" | "code";
+type Step = "email" | "code" | "request" | "requested";
 type Notice = { text: string; tone: "info" | "error" } | null;
 
 async function postJson(url: string, body: unknown) {
@@ -101,54 +102,134 @@ export default function LoginPage() {
     setNotice(null);
   }
 
-  return <main className="auth-page">
-    <section className="auth-card">
-      <div className="auth-brand"><span>DOPS</span><small>Plastic &amp; Reconstructive Surgery</small></div>
-      <div className="auth-icon">{step === "email" ? <Mail /> : <KeyRound />}</div>
+  function openRequest() {
+    setStep("request");
+    setNotice(null);
+  }
 
-      {step === "email" ? <>
-        <h1>Sign in with email</h1>
-        <p>Use the email address approved by the department administrator. We will send you a 6-digit sign-in code.</p>
-        <form onSubmit={submitEmail}>
-          <label>Email address<Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" inputMode="email" required autoFocus /></label>
-          {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
-          <Button disabled={busy || !email}>{busy ? "Sending code…" : "Send code"}</Button>
-        </form>
-      </> : <>
-        <h1>Enter your code</h1>
-        <p>Enter the 6-digit code sent to <strong>{email}</strong>. It expires in 10 minutes.</p>
-        <form onSubmit={submitCode}>
-          <label htmlFor="otp-code">Sign-in code</label>
-          <InputOTP
-            id="otp-code"
-            ref={codeInput}
-            maxLength={6}
-            value={code}
-            onChange={(value) => setCode(value.replace(/\D/g, ""))}
-            onComplete={(value: string) => void verify(value)}
-            pattern="^[0-9]*$"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            disabled={busy}
-            autoFocus
-            containerClassName="auth-otp"
-          >
-            <InputOTPGroup>
-              {[0, 1, 2, 3, 4, 5].map((index) => <InputOTPSlot key={index} index={index} className="auth-otp-slot" aria-invalid={notice?.tone === "error" || undefined} />)}
-            </InputOTPGroup>
-          </InputOTP>
-          {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
-          <Button disabled={busy || code.length !== 6}>{busy ? "Signing in…" : "Sign in"}</Button>
-          <div className="auth-actions">
-            <Button type="button" variant="ghost" onClick={changeEmail} disabled={busy}>Change email</Button>
-            <Button type="button" variant="ghost" onClick={() => void requestCode()} disabled={busy || cooldown > 0}>
-              {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
-            </Button>
+  async function submitRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setNotice(null);
+    const result = await postJson("/api/auth/request-account", {
+      name: form.get("name"),
+      email: form.get("email"),
+      mobile: form.get("mobile"),
+      role: form.get("role"),
+      note: form.get("note"),
+      website: form.get("website"), // hidden anti-spam field
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setNotice({ text: String(result.data.message ?? "Could not send the request. Try again."), tone: "error" });
+      return;
+    }
+    setEmail(String(form.get("email") ?? ""));
+    setStep("requested");
+  }
+
+  const heading =
+    step === "code" ? "Enter your code" : step === "request" ? "Request an account" : step === "requested" ? "Request sent" : "Sign in";
+
+  return <main className="login-shell">
+    <aside className="login-hero" aria-label="DOPS">
+      <div className="login-hero-art" aria-hidden="true" />
+      <div className="login-hero-top">
+        <Image src="/brand/dops-logo-full.png" alt="DOPS — Plastic & Reconstructive Surgery" width={529} height={600} priority unoptimized className="login-logo" />
+      </div>
+      <div className="login-hero-copy">
+        <h2>Plastic &amp; Reconstructive Surgery<br />Department Management</h2>
+        <p>OPD → IPD → Ward → OT → Discharge. Academics, Skin Bank, Leprosy &amp; CM Helpline — one continuous patient record.</p>
+      </div>
+      <p className="login-hero-foot">NSCB MEDICAL COLLEGE, JABALPUR</p>
+    </aside>
+
+    <section className="login-panel">
+      <div className="login-card auth-card">
+        <p className="login-eyebrow">{step === "request" || step === "requested" ? "NEW USER" : "SECURE ACCESS"}</p>
+        <h1>{heading}</h1>
+
+        {step === "email" && <>
+          <p className="login-sub">Sign in with a one-time code sent to your email.</p>
+          <form onSubmit={submitEmail}>
+            <label>Email address<Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" inputMode="email" placeholder="you@hospital.in" required autoFocus /></label>
+            {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
+            <Button className="login-primary" disabled={busy || !email}><Mail /> {busy ? "Sending code…" : "Send code"}</Button>
+          </form>
+          <p className="login-switch">New user? <button type="button" onClick={openRequest}>Request an account</button></p>
+        </>}
+
+        {step === "code" && <>
+          <p className="login-sub">Enter the 6-digit code sent to <strong>{email}</strong>. It expires in 10 minutes.</p>
+          <form onSubmit={submitCode}>
+            <label htmlFor="otp-code">Sign-in code</label>
+            <InputOTP
+              id="otp-code"
+              ref={codeInput}
+              maxLength={6}
+              value={code}
+              onChange={(value) => setCode(value.replace(/\D/g, ""))}
+              onComplete={(value: string) => void verify(value)}
+              pattern="^[0-9]*$"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              disabled={busy}
+              autoFocus
+              containerClassName="auth-otp"
+            >
+              <InputOTPGroup>
+                {[0, 1, 2, 3, 4, 5].map((index) => <InputOTPSlot key={index} index={index} className="auth-otp-slot" aria-invalid={notice?.tone === "error" || undefined} />)}
+              </InputOTPGroup>
+            </InputOTP>
+            {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
+            <Button className="login-primary" disabled={busy || code.length !== 6}><ShieldCheck /> {busy ? "Signing in…" : "Sign in"}</Button>
+            <div className="auth-actions">
+              <Button type="button" variant="ghost" onClick={changeEmail} disabled={busy}>Change email</Button>
+              <Button type="button" variant="ghost" onClick={() => void requestCode()} disabled={busy || cooldown > 0}>
+                {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+              </Button>
+            </div>
+          </form>
+        </>}
+
+        {step === "request" && <>
+          <p className="login-sub">Fill in your details. The department administrator will approve your access.</p>
+          <form onSubmit={submitRequest} className="login-request">
+            <label>Full name<Input name="name" autoComplete="name" required minLength={2} maxLength={100} autoFocus /></label>
+            <label>Email address<Input name="email" type="email" autoComplete="email" inputMode="email" placeholder="you@hospital.in" required /></label>
+            <div className="login-row">
+              <label>Mobile number<Input name="mobile" inputMode="numeric" autoComplete="tel-national" pattern="[0-9]{10}" maxLength={10} placeholder="10 digits" required /></label>
+              <label>Role
+                <select name="role" required defaultValue="">
+                  <option value="" disabled>Select</option>
+                  <option value="DOCTOR">Doctor</option>
+                  <option value="RESIDENT">Resident</option>
+                  <option value="NURSE">Nurse</option>
+                  <option value="STAFF">Staff</option>
+                </select>
+              </label>
+            </div>
+            <label>Designation / note <span className="login-optional">(optional)</span><Input name="note" maxLength={300} placeholder="e.g. Senior Resident, Burns Unit" /></label>
+            {/* Hidden from people; bots that fill every field are ignored. */}
+            <input type="text" name="website" tabIndex={-1} autoComplete="off" className="login-honeypot" aria-hidden="true" />
+            {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
+            <Button className="login-primary" disabled={busy}><UserPlus /> {busy ? "Sending…" : "Send request"}</Button>
+          </form>
+          <p className="login-switch"><button type="button" onClick={changeEmail}><ArrowLeft /> Back to sign in</button></p>
+        </>}
+
+        {step === "requested" && <>
+          <div className="login-success" role="status">
+            <ShieldCheck />
+            <p>Thank you. Your request has been sent to the department administrator. You will receive an email at <strong>{email}</strong> once your access is approved.</p>
           </div>
-        </form>
-      </>}
+          <Button type="button" className="login-primary" onClick={changeEmail}>Back to sign in</Button>
+        </>}
 
-      <small className="auth-note">Only users added by the department administrator can sign in. Never share your sign-in code.</small>
+        <small className="auth-note">Protected department system. Never share your sign-in code.</small>
+      </div>
     </section>
   </main>;
 }

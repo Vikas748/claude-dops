@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { localDate } from "@/lib/dates";
@@ -470,13 +471,16 @@ export default function Home() {
     <SidebarProvider>
       <Sidebar collapsible="offcanvas" className="border-r-0">
         <SidebarHeader className="brand-block">
-          <div className="brand-mark">
-            <HeartPulse />
-          </div>
-          <div>
-            <strong>DOPS</strong>
-            <span>Plastic & Reconstructive Surgery</span>
-          </div>
+          <Image
+            src="/brand/dops-logo-full.png"
+            alt="DOPS"
+            width={529}
+            height={600}
+            priority
+            unoptimized
+            className="brand-logo"
+          />
+          <span>Plastic & Reconstructive Surgery</span>
         </SidebarHeader>
         <SidebarContent className="px-3">
           <NavGroup
@@ -728,7 +732,7 @@ function AlertCentre({
         !localStorage.getItem(`dops-alert-${item.id}`),
     );
     for (const alert of unseen) {
-      new Notification(alert.title, { body: alert.detail, icon: "/favicon.svg" });
+      new Notification(alert.title, { body: alert.detail, icon: "/brand/icon-192.png" });
       localStorage.setItem(`dops-alert-${alert.id}`, "shown");
     }
   }, [alerts, browserAlerts]);
