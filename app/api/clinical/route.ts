@@ -13,17 +13,17 @@ export async function GET() {
     const [ipd, ward, ot] = await Promise.all([
       db
         .prepare(
-          `SELECT i.id,i.patient_id AS patientId,i.diagnosis,i.admission_date AS admissionDate,i.plan_management AS planManagement,i.ayushman_code AS ayushmanCode,i.status,p.patient_code AS patientCode,p.name,p.age,p.sex,p.mobile FROM ipd_admissions i JOIN patients p ON p.id=i.patient_id WHERE p.deleted_at IS NULL ORDER BY i.id DESC`,
+          `SELECT i.id,i.patient_id AS patientId,i.diagnosis,i.admission_date AS admissionDate,i.plan_management AS planManagement,i.ayushman_code AS ayushmanCode,i.status,p.patient_code AS patientCode,p.opd_number AS opdNumber,p.name,p.age,p.sex,p.mobile FROM ipd_admissions i JOIN patients p ON p.id=i.patient_id WHERE p.deleted_at IS NULL ORDER BY i.id DESC`,
         )
         .all(),
       db
         .prepare(
-          `SELECT w.id AS wardId,w.ipd_id AS ipdId,w.ward_name AS wardName,w.bed_number AS bedNumber,w.pac_status AS pacStatus,w.admitted_at AS admittedAt,w.discharged_at AS dischargedAt,i.diagnosis,p.patient_code AS patientCode,p.name,p.age,p.sex FROM ward_stays w JOIN ipd_admissions i ON i.id=w.ipd_id JOIN patients p ON p.id=i.patient_id ORDER BY w.id DESC`,
+          `SELECT w.id AS wardId,w.ipd_id AS ipdId,w.ward_name AS wardName,w.bed_number AS bedNumber,w.pac_status AS pacStatus,w.admitted_at AS admittedAt,w.discharged_at AS dischargedAt,i.diagnosis,p.patient_code AS patientCode,p.opd_number AS opdNumber,p.name,p.age,p.sex FROM ward_stays w JOIN ipd_admissions i ON i.id=w.ipd_id JOIN patients p ON p.id=i.patient_id ORDER BY w.id DESC`,
         )
         .all(),
       db
         .prepare(
-          `SELECT o.id,o.ipd_id AS ipdId,o.scheduled_date AS scheduledDate,o.scheduled_time AS scheduledTime,o.procedure_name AS procedureName,o.surgeon_name AS surgeonName,o.pac_status AS pacStatus,o.status,i.diagnosis,p.patient_code AS patientCode,p.name FROM ot_procedures o JOIN ipd_admissions i ON i.id=o.ipd_id JOIN patients p ON p.id=i.patient_id ORDER BY o.scheduled_date DESC,o.scheduled_time DESC`,
+          `SELECT o.id,o.ipd_id AS ipdId,o.scheduled_date AS scheduledDate,o.scheduled_time AS scheduledTime,o.procedure_name AS procedureName,o.surgeon_name AS surgeonName,o.pac_status AS pacStatus,o.status,i.diagnosis,p.patient_code AS patientCode,p.opd_number AS opdNumber,p.name FROM ot_procedures o JOIN ipd_admissions i ON i.id=o.ipd_id JOIN patients p ON p.id=i.patient_id ORDER BY o.scheduled_date DESC,o.scheduled_time DESC`,
         )
         .all(),
     ]);

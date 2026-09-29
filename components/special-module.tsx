@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { localDate } from "@/lib/dates";
+import { formatDate, formatDateTime, localDate } from "@/lib/dates";
 import { Columns3, Download, History, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,15 @@ const fields: { [k: string]: string[] } = {
   ],
   HELPLINE: ["Patient ID", "Diagnosis", "Mobile", "Address", "Ward / Bed", "Description", "Resolved At"],
 };
+/** Register cell: dates shown as DD-MM-YYYY, empty as a dash. */
+function displayCell(value: unknown) {
+  const text = String(value ?? "");
+  if (!text) return "—";
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) return formatDateTime(text);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return formatDate(text);
+  return text;
+}
+
 export function SpecialModule({
   module,
   notify,
@@ -104,6 +113,8 @@ export function SpecialModule({
       .slice(0, 10),
     exportBase = `/api/special?kind=${kind}&from=${from}&to=${to}`;
   const totalFields = [...fields[kind], ...customColumns.map((column) => column.name)];
+  // Skin Bank follows the official proforma, which has no status column.
+  const isSkin = kind === "SKIN_RECIPIENT" || kind === "SKIN_DONOR";
   const visibleRows = kind === "HELPLINE" && statusFilter !== "ALL" ? rows.filter((row) => row.status === statusFilter) : rows;
   const load = async () => {
     const r = await fetch(
@@ -274,7 +285,7 @@ export function SpecialModule({
                 {totalFields.map((x) => (
                   <th key={x}>{x}</th>
                 ))}
-                <th>Status</th>
+                {!isSkin && <th>Status</th>}
                 <th>Actions</th>
               </tr>
             </thead>
@@ -282,16 +293,18 @@ export function SpecialModule({
               {visibleRows.map((r, i) => (
                 <tr key={r.id}>
                   <td>{i + 1}</td>
-                  <td>{r.recordDate}</td>
+                  <td>{formatDate(r.recordDate)}</td>
                   <td>
                     <strong>{r.primaryName}</strong>
                   </td>
                   {totalFields.map((x) => (
-                    <td key={x}>{r.payload[x] || "—"}</td>
+                    <td key={x}>{displayCell(r.payload[x])}</td>
                   ))}
-                  <td>
-                    <span className="clinical-badge active">{r.status}</span>
-                  </td>
+                  {!isSkin && (
+                    <td>
+                      <span className="clinical-badge active">{r.status}</span>
+                    </td>
+                  )}
                   <td>
                     <div className="row-actions">
                       <Button
@@ -411,7 +424,7 @@ export function SpecialModule({
                   )}
                 </label>
               ))}
-              <label>
+              {isSkin ? <input type="hidden" name="status" value={edit?.status ?? "ACTIVE"} /> : <label>
                 Status
                 <select
                   name="status"
@@ -421,7 +434,7 @@ export function SpecialModule({
                 >
                   {kind === "HELPLINE" ? <><option value="PENDING">Pending</option><option value="RESOLVED">Resolved</option></> : <><option>ACTIVE</option><option>PENDING</option><option>IN_PROGRESS</option><option>RESOLVED</option><option>RELEASED</option></>}
                 </select>
-              </label>
+              </label>}
             </div>
             <DialogFooter className="mt-6">
               <Button

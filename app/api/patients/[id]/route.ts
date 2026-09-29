@@ -1,4 +1,5 @@
 import { getDopsDb, jsonError } from "@/lib/dops-db";
+import { duplicateOpdMessage, isOpdNumberConflict, opdNumberOwner, readOpdNumber } from "@/lib/opd-number";
 import { hasPermission, isResponse, requirePermission } from "@/lib/access";
 import { actorDetails, enforceRequestSize, rateLimit, rejectCrossSiteMutation } from "@/lib/security";
 
@@ -23,7 +24,7 @@ export async function GET(
     const db = getDopsDb();
     const patient = await db
       .prepare(
-        "SELECT id,patient_code AS patientCode,name,age,sex,mobile,address,created_at AS createdAt FROM patients WHERE id=? AND deleted_at IS NULL",
+        "SELECT id,patient_code AS patientCode,opd_number AS opdNumber,name,age,sex,mobile,address,created_at AS createdAt FROM patients WHERE id=? AND deleted_at IS NULL",
       )
       .bind(id)
       .first();
@@ -192,6 +193,11 @@ export async function PATCH(
       !diagnosis
     )
       return jsonError("Please enter valid patient details.");
+    const opd = readOpdNumber(b.opdNumber);
+    if ("error" in opd) return jsonError(opd.error);
+    const opdNumber = opd.value;
+    const owner = await opdNumberOwner(opdNumber, id);
+    if (owner) return jsonError(duplicateOpdMessage(opdNumber, owner), 409);
     const db = getDopsDb(),
       now = new Date().toISOString(),
       visit = await db
@@ -202,18 +208,18 @@ export async function PATCH(
         .first<{ id: number }>();
     if (!visit) return jsonError("Patient record not found.", 404);
     const before = await db
-      .prepare("SELECT p.name,p.age,p.sex,p.mobile,p.address,o.diagnosis FROM patients p JOIN opd_visits o ON o.id=? WHERE p.id=?")
+      .prepare("SELECT p.name,p.age,p.sex,p.mobile,p.address,p.opd_number AS \"opdNumber\",o.diagnosis FROM patients p JOIN opd_visits o ON o.id=? WHERE p.id=?")
       .bind(visit.id, id)
-      .first<{ name: string; age: number; sex: string; mobile: string; address: string; diagnosis: string }>();
-    const after = { name, age, sex, mobile, address, diagnosis };
-    const labels: Record<string, string> = { name: "name", age: "age", sex: "sex", mobile: "mobile", address: "address", diagnosis: "diagnosis" };
+      .first<{ name: string; age: number; sex: string; mobile: string; address: string; opdNumber: string | null; diagnosis: string }>();
+    const after = { name, age, sex, mobile, address, opdNumber, diagnosis };
+    const labels: Record<string, string> = { name: "name", age: "age", sex: "sex", mobile: "mobile", address: "address", opdNumber: "OPD No./UHID No.", diagnosis: "diagnosis" };
     const changed = before ? Object.keys(after).filter((k) => String(before[k as keyof typeof before]) !== String(after[k as keyof typeof after])).map((k) => labels[k]) : [];
     await db.batch([
       db
         .prepare(
-          "UPDATE patients SET name=?,age=?,sex=?,mobile=?,address=?,updated_at=? WHERE id=? AND deleted_at IS NULL",
+          "UPDATE patients SET name=?,age=?,sex=?,mobile=?,address=?,opd_number=?,updated_at=? WHERE id=? AND deleted_at IS NULL",
         )
-        .bind(name, age, sex, mobile, address, now, id),
+        .bind(name, age, sex, mobile, address, opdNumber, now, id),
       db
         .prepare("UPDATE opd_visits SET diagnosis=?,updated_at=? WHERE id=?")
         .bind(diagnosis, now, visit.id),
@@ -225,6 +231,7 @@ export async function PATCH(
     ]);
     return Response.json({ success: true });
   } catch (error) {
+    if (isOpdNumberConflict(error)) return jsonError("This OPD No. / UHID No. is already used by another patient.", 409);
     console.error("PATCH patient failed", error);
     return jsonError("Patient update failed.", 500);
   }

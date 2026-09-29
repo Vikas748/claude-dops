@@ -1,5 +1,5 @@
 import { getDopsDb, jsonError, likePattern } from "@/lib/dops-db";
-import { istDate } from "@/lib/dates";
+import { formatDate, istDate } from "@/lib/dates";
 import { isResponse, requirePermission } from "@/lib/access";
 import { actorDetails, enforceRequestSize, rateLimit, rejectCrossSiteMutation, csvCell } from "@/lib/security";
 import { buildXlsx } from "@/lib/xlsx";
@@ -87,17 +87,23 @@ export async function GET(request: Request) {
         .run();
       const discovered = Array.from(new Set(rows.flatMap((r) => Object.keys(r.payload as object)))),
         keys = [...(fieldKeys[kind] ?? []), ...discovered.filter((key) => !(fieldKeys[kind] ?? []).includes(key))],
-        headers = ["S No", "Date", "Name", "Status", ...keys],
+        // Skin Bank follows the official proforma: no status column. Dates DD-MM-YYYY.
+        skin = kind.startsWith("SKIN_"),
+        cell = (value: unknown) => {
+          const text = String(value ?? "");
+          return /^\d{4}-\d{2}-\d{2}(T|$)/.test(text) ? formatDate(text) : text;
+        },
+        headers = ["S No", "Date", "Name", ...(skin ? [] : ["Status"]), ...keys],
         csv = [
           headers.map(csvCell).join(","),
           ...rows.map((r, i) =>
             [
               i + 1,
-              r.recordDate,
+              formatDate(r.recordDate),
               r.primaryName,
-              r.status,
+              ...(skin ? [] : [r.status]),
               ...keys.map(
-                (k) => (r.payload as Record<string, unknown>)[k] ?? "",
+                (k) => cell((r.payload as Record<string, unknown>)[k]),
               ),
             ]
               .map(csvCell)
@@ -125,7 +131,7 @@ export async function GET(request: Request) {
             `Period: ${from} to ${to}    Total: ${rows.length}`,
           ],
           headers,
-          rows: rows.map((row, i) => [i + 1, row.recordDate, row.primaryName, row.status, ...keys.map((k) => (row.payload as Record<string, unknown>)[k] ?? "")]),
+          rows: rows.map((row, i) => [i + 1, formatDate(row.recordDate), row.primaryName, ...(skin ? [] : [row.status]), ...keys.map((k) => cell((row.payload as Record<string, unknown>)[k]))]),
         });
         return new Response(new Uint8Array(workbook), {
           headers: {

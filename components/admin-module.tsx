@@ -1,5 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import JSZip from "jszip";
 import { putToSignedUrl } from "@/lib/direct-upload";
 import { Activity, CheckCircle2, ClipboardCheck, Database, Download, HardDrive, Plus, RefreshCw, RotateCcw, ShieldCheck, Upload, XCircle } from "lucide-react";
@@ -194,7 +195,7 @@ export function AdminModule({ notify }: { notify: (m: string) => void }) {
       }
       setBackupProgress("Creating recovery package…");
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }),
-        filename = `dops-recovery-${snapshot.exportedAt.slice(0, 10)}.zip`,
+        filename = `dops-recovery-${formatDate(snapshot.exportedAt)}.zip`,
         url = URL.createObjectURL(blob),
         anchor = document.createElement("a");
       anchor.href = url;
@@ -395,7 +396,7 @@ export function AdminModule({ notify }: { notify: (m: string) => void }) {
                 <span className="clinical-badge">{l.module}</span>
                 <strong>{l.action}</strong>
                 <p>{l.details}</p>
-                <time>{new Date(l.createdAt).toLocaleString()}</time>
+                <time>{formatDateTime(l.createdAt)}</time>
               </div>
             ))}
           </article>
@@ -415,14 +416,14 @@ export function AdminModule({ notify }: { notify: (m: string) => void }) {
             <div className="health-grid">
               <div><span><Database /></span><small>Patient database</small><strong>{health?.database ?? "Checking…"}</strong></div>
               <div><span><HardDrive /></span><small>Document storage</small><strong>{health?.storage ?? "Checking…"}</strong></div>
-              <div><span><Activity /></span><small>Last health check</small><strong>{health ? new Date(health.checkedAt).toLocaleString("en-IN") : "—"}</strong></div>
+              <div><span><Activity /></span><small>Last health check</small><strong>{health ? formatDateTime(health.checkedAt) : "—"}</strong></div>
             </div>
             <div className="backup-card">
               <div className="backup-icon"><Download /></div>
               <div>
                 <h3>Download complete recovery package</h3>
                 <p>Creates one ZIP containing the full database, discharge cards, academic PDFs and OT images.</p>
-                <small>Last backup: {health?.lastBackupAt ? new Date(health.lastBackupAt).toLocaleString("en-IN") : "No backup recorded yet"}</small>
+                <small>Last backup: {health?.lastBackupAt ? formatDateTime(health.lastBackupAt) : "No backup recorded yet"}</small>
               </div>
               <Button onClick={() => void downloadBackup()} disabled={backingUp}>
                 <Download /> {backingUp ? backupProgress || "Preparing…" : "Download ZIP"}
@@ -433,7 +434,7 @@ export function AdminModule({ notify }: { notify: (m: string) => void }) {
               <div>
                 <h3>Restore from recovery package</h3>
                 <p>Validate a DOPS ZIP package before replacing current database records and restoring its files.</p>
-                {restorePackage && <small>Ready: {restorePackage.name} · {restorePackage.snapshot.files.length} file(s) · exported {new Date(restorePackage.snapshot.exportedAt).toLocaleString("en-IN")}</small>}
+                {restorePackage && <small>Ready: {restorePackage.name} · {restorePackage.snapshot.files.length} file(s) · exported {formatDateTime(restorePackage.snapshot.exportedAt)}</small>}
               </div>
               <label className="restore-picker">
                 <Upload /> Select ZIP
@@ -488,7 +489,7 @@ export function AdminModule({ notify }: { notify: (m: string) => void }) {
               <section className={`acceptance-card ${acceptance?.decision?.toLowerCase() ?? ""}`}>
                 <div className="acceptance-heading">
                   <div><ShieldCheck /><span><small>FINAL ACCEPTANCE</small><h3>{acceptance ? `Hospital decision: ${acceptance.decision}` : "Record hospital sign-off"}</h3></span></div>
-                  {acceptance?.acceptedAt && <small>Recorded {new Date(acceptance.acceptedAt).toLocaleString("en-IN")} by {acceptance.acceptedBy}</small>}
+                  {acceptance?.acceptedAt && <small>Recorded {formatDateTime(acceptance.acceptedAt)} by {acceptance.acceptedBy}</small>}
                 </div>
                 <div className="acceptance-grid">
                   <label>Department representative<Input value={acceptanceForm.departmentRepresentative} onChange={(event) => setAcceptanceForm((form) => ({ ...form, departmentRepresentative: event.target.value }))} /></label>
@@ -519,7 +520,7 @@ export function AdminModule({ notify }: { notify: (m: string) => void }) {
                     <Input placeholder="Evidence or issue notes" value={check.notes} onChange={(event) => setUatChecks((items) => items.map((item) => item.id === check.id ? { ...item, notes: event.target.value } : item))} />
                     <Button size="sm" onClick={() => void saveUat(check)} disabled={uatSaving === check.id}>{uatSaving === check.id ? "Saving…" : "Save result"}</Button>
                   </div>
-                  {check.testedBy && <footer>Last tested by {check.testedBy}{check.testedAt ? ` · ${new Date(check.testedAt).toLocaleString("en-IN")}` : ""}</footer>}
+                  {check.testedBy && <footer>Last tested by {check.testedBy}{check.testedAt ? ` · ${formatDateTime(check.testedAt)}` : ""}</footer>}
                 </section>
               ))}
               {!uatLoading && !uatChecks.length && <div className="empty-state"><ClipboardCheck /><h3>Open this tab to load UAT checks</h3></div>}

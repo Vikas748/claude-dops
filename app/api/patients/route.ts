@@ -1,4 +1,5 @@
 import { getDopsDb, jsonError, likePattern } from "@/lib/dops-db";
+import { duplicateOpdMessage, isOpdNumberConflict, opdNumberOwner, readOpdNumber } from "@/lib/opd-number";
 import { istDate, istYear } from "@/lib/dates";
 import { isResponse, requirePermission } from "@/lib/access";
 import { actorDetails, enforceRequestSize, rateLimit, rejectCrossSiteMutation } from "@/lib/security";
@@ -13,9 +14,9 @@ export async function GET(request: Request) {
     const like = likePattern(q);
     const result = await db
       .prepare(
-        `SELECT p.id, p.patient_code AS patientCode, p.name, p.age, p.sex, p.mobile, p.address, o.id AS opdId, o.diagnosis, o.visit_date AS visitDate, o.status FROM patients p JOIN opd_visits o ON o.patient_id=p.id WHERE p.deleted_at IS NULL AND o.deleted_at IS NULL AND (?='' OR p.name ILIKE ? OR p.patient_code ILIKE ? OR p.mobile ILIKE ? OR o.diagnosis ILIKE ? OR o.visit_date ILIKE ?) ORDER BY o.visit_date DESC,o.id DESC LIMIT 200`,
+        `SELECT p.id, p.patient_code AS patientCode, p.name, p.age, p.sex, p.mobile, p.address, p.opd_number AS opdNumber, o.id AS opdId, o.diagnosis, o.visit_date AS visitDate, o.status FROM patients p JOIN opd_visits o ON o.patient_id=p.id WHERE p.deleted_at IS NULL AND o.deleted_at IS NULL AND (?='' OR p.name ILIKE ? OR p.patient_code ILIKE ? OR p.mobile ILIKE ? OR p.opd_number ILIKE ? OR o.diagnosis ILIKE ? OR o.visit_date ILIKE ?) ORDER BY o.visit_date DESC,o.id DESC LIMIT 200`,
       )
-      .bind(q, like, like, like, like, like)
+      .bind(q, like, like, like, like, like, like)
       .all();
     return Response.json({ success: true, data: result.results });
   } catch (error) {
@@ -48,7 +49,11 @@ export async function POST(request: Request) {
       !diagnosis
     )
       return jsonError("Please enter valid patient details.");
+    const opd = readOpdNumber(b.opdNumber);
+    if ("error" in opd) return jsonError(opd.error);
     const db = getDopsDb();
+    const owner = await opdNumberOwner(opd.value);
+    if (owner) return jsonError(duplicateOpdMessage(opd.value, owner), 409);
     const duplicate = await db
       .prepare(
         "SELECT patient_code AS patientCode FROM patients WHERE deleted_at IS NULL AND mobile=? AND lower(name)=lower(?) LIMIT 1",
@@ -64,9 +69,9 @@ export async function POST(request: Request) {
     const draft = `PENDING-${crypto.randomUUID()}`;
     const inserted = await db
       .prepare(
-        "INSERT INTO patients (patient_code,name,age,sex,mobile,address,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?) RETURNING id",
+        "INSERT INTO patients (patient_code,name,age,sex,mobile,address,opd_number,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?) RETURNING id",
       )
-      .bind(draft, name, age, sex, mobile, address, now, now)
+      .bind(draft, name, age, sex, mobile, address, opd.value, now, now)
       .first<{ id: number }>();
     if (!inserted?.id) throw new Error("Patient insert returned no id");
     const code = `DOPS-${istYear()}-${String(inserted.id).padStart(6, "0")}`;
@@ -91,6 +96,7 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (isOpdNumberConflict(error)) return jsonError("This OPD No. / UHID No. is already used by another patient.", 409);
     console.error("POST patient failed", error);
     return jsonError("Patient registration failed.", 500);
   }

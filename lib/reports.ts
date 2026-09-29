@@ -37,14 +37,15 @@ const REPORTS: Record<ReportModule, { title: string; columns: Column[]; sql: str
     columns: [
       { key: "date", label: "Date", width: 62 },
       { key: "patientId", label: "Patient ID", width: 88 },
-      { key: "name", label: "Name", width: 130 },
+      { key: "opdNumber", label: "OPD No./UHID", width: 78 },
+      { key: "name", label: "Name", width: 125 },
       { key: "age", label: "Age", width: 32, align: "right" },
       { key: "sex", label: "Sex", width: 44 },
       { key: "diagnosis", label: "Diagnosis", width: 190 },
       { key: "mobile", label: "Mobile", width: 72 },
       { key: "address", label: "Address", width: 140 },
     ],
-    sql: `SELECT o.visit_date AS "date", p.patient_code AS "patientId", p.name AS "name", p.age AS "age",
+    sql: `SELECT o.visit_date AS "date", p.patient_code AS "patientId", p.opd_number AS "opdNumber", p.name AS "name", p.age AS "age",
                  p.sex AS "sex", o.diagnosis AS "diagnosis", p.mobile AS "mobile", p.address AS "address"
             FROM opd_visits o JOIN patients p ON p.id = o.patient_id
            WHERE o.deleted_at IS NULL AND p.deleted_at IS NULL AND o.visit_date BETWEEN ? AND ?
@@ -101,12 +102,12 @@ export async function loadReport(module: string, from: string, to: string): Prom
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** 2026-09-07 -> 07 Sep 2026 */
+/** 2026-09-07 -> 07-09-2026 (the DOPS display format everywhere) */
 export function displayDate(value: unknown) {
   const s = String(value ?? "");
   if (!isoDate.test(s.slice(0, 10))) return s;
   const [y, m, d] = s.slice(0, 10).split("-");
-  return `${d} ${MONTHS[Number(m) - 1]} ${y}`;
+  return `${d}-${m}-${y}`;
 }
 
 /** A readable period label: "September 2026" for a whole month, else "01 Sep 2026 – 15 Sep 2026". */

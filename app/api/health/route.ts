@@ -38,6 +38,8 @@ const MIGRATION_TABLES: Record<string, string> = {
 };
 // Migrations that change columns rather than add tables: SQL returning "present".
 const MIGRATION_QUERIES: Record<string, string> = {
+  "007_opd_number.sql":
+    "SELECT COUNT(*) > 0 AS present FROM information_schema.columns WHERE table_schema='public' AND table_name='patients' AND column_name='opd_number'",
   "005_optional_academic_pdf.sql":
     "SELECT is_nullable = 'YES' AS present FROM information_schema.columns WHERE table_schema='public' AND table_name='academic_documents' AND column_name='file_key'",
 };

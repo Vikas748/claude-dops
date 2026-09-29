@@ -1,5 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
+import { formatDate } from "@/lib/dates";
 import { uploadDirect } from "@/lib/direct-upload";
 import {
   ExternalLink,
@@ -145,7 +146,7 @@ export function AcademicModule({
                 <FileText />
               </div>
               <div className="doc-content">
-                <span>{d.documentDate}</span>
+                <span>{formatDate(d.documentDate)}</span>
                 <h3>{d.title}</h3>
                 <p>{d.doctorName}</p>
                 {d.fileKey ? <small>{d.fileName}</small> : <small className="doc-no-pdf">No PDF yet</small>}

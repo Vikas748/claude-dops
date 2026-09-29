@@ -2,7 +2,7 @@
 import Image from "next/image";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { localDate } from "@/lib/dates";
+import { formatDate, localDate } from "@/lib/dates";
 import {
   Activity,
   Ambulance,
@@ -92,6 +92,7 @@ type Patient = {
   sex: string;
   mobile: string;
   address: string;
+  opdNumber: string | null;
   opdId: number;
   diagnosis: string;
   visitDate: string;
@@ -361,7 +362,7 @@ export default function Home() {
     const q = query.toLowerCase().trim();
     return q
       ? records.filter((p) =>
-          `${p.name} ${p.patientCode} ${p.diagnosis} ${p.mobile} ${p.visitDate}`
+          `${p.name} ${p.patientCode} ${p.opdNumber ?? ""} ${p.diagnosis} ${p.mobile} ${p.address} ${p.visitDate} ${formatDate(p.visitDate)}`
             .toLowerCase()
             .includes(q),
         )
@@ -1005,7 +1006,7 @@ function Dashboard({
                   >
                     {p.status}
                   </span>
-                  <time>{p.visitDate}</time>
+                  <time>{formatDate(p.visitDate)}</time>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1126,10 +1127,12 @@ function OpdPage({
           <table className="opd-table">
             <thead>
               <tr>
-                <th>Patient</th>
-                <th>Age/Sex</th>
-                <th>Diagnosis</th>
+                <th className="col-patient">Patient</th>
+                <th className="col-opdno">OPD No./UHID No.</th>
+                <th className="col-agesex">Age/Sex</th>
+                <th className="col-diagnosis">Diagnosis</th>
                 <th>Mobile</th>
+                <th className="col-address">Address</th>
                 <th>Visit date</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -1142,12 +1145,14 @@ function OpdPage({
                     <strong>{p.name}</strong>
                     <small>{p.patientCode}</small>
                   </td>
+                  <td>{p.opdNumber || <span className="muted-dash">—</span>}</td>
                   <td>
                     {p.age} / {p.sex[0]}
                   </td>
-                  <td>{p.diagnosis}</td>
+                  <td className="col-diagnosis">{p.diagnosis}</td>
                   <td>{p.mobile}</td>
-                  <td>{p.visitDate}</td>
+                  <td className="col-address">{p.address}</td>
+                  <td>{formatDate(p.visitDate)}</td>
                   <td>
                     <span
                       className={`stage ${p.status === "ADMITTED" ? "amber" : "cyan"}`}
@@ -1270,6 +1275,16 @@ function PatientDialog({
                 inputMode="numeric"
                 pattern="[0-9]{10}"
                 defaultValue={patient?.mobile}
+              />
+            </label>
+            <label>
+              OPD No. / UHID No.
+              <Input
+                name="opdNumber"
+                required
+                maxLength={40}
+                defaultValue={patient?.opdNumber ?? ""}
+                placeholder="e.g. OPD/2026/1234"
               />
             </label>
             <label className="span-2">
@@ -1405,14 +1420,7 @@ function initials(name: string) {
     .toUpperCase();
 }
 function formatTimelineDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value.slice(0, 10)
-    : date.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
+  return formatDate(value);
 }
 function formatTimelineTime(value: string) {
   if (!value.includes("T")) return "";

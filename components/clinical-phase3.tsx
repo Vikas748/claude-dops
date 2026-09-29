@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { localDate } from "@/lib/dates";
+import { formatDate, localDate } from "@/lib/dates";
 import { uploadAllDirect, uploadDirect } from "@/lib/direct-upload";
 import Image from "next/image";
 import {
@@ -32,6 +32,7 @@ type Ipd = {
   id: number;
   patientId: number;
   patientCode: string;
+  opdNumber?: string | null;
   name: string;
   age: number;
   sex: string;
@@ -189,12 +190,12 @@ export function ClinicalPhase3({
   };
   const q = query.toLowerCase();
   const ipd = data.ipd.filter((x) =>
-    `${x.name} ${x.patientCode} ${x.diagnosis} ${x.admissionDate}`.toLowerCase().includes(q),
+    `${x.name} ${x.patientCode} ${x.opdNumber ?? ""} ${x.diagnosis} ${x.admissionDate} ${formatDate(x.admissionDate)}`.toLowerCase().includes(q),
   );
   const wards = data.ward.filter(
     (x) =>
       !x.dischargedAt &&
-      `${x.name} ${x.patientCode} ${x.diagnosis} ${x.wardName} ${x.bedNumber} ${x.admittedAt.slice(0, 10)}`.toLowerCase().includes(q),
+      `${x.name} ${x.patientCode} ${x.diagnosis} ${x.wardName} ${x.bedNumber} ${formatDate(x.admittedAt)}`.toLowerCase().includes(q),
   );
   return (
     <>
@@ -231,6 +232,7 @@ export function ClinicalPhase3({
         <ClinicalTable
           headers={[
             "Patient",
+            "OPD No./UHID No.",
             "Diagnosis",
             "Admission",
             "Management / Ayushman",
@@ -243,8 +245,9 @@ export function ClinicalPhase3({
           {ipd.map((p) => (
             <tr key={p.id}>
               <PatientCell p={p} />
+              <td>{p.opdNumber || "—"}</td>
               <td>{p.diagnosis}</td>
-              <td>{p.admissionDate}</td>
+              <td>{formatDate(p.admissionDate)}</td>
               <td>
                 <strong>{p.planManagement || "Not added"}</strong>
                 <small>
@@ -325,7 +328,7 @@ export function ClinicalPhase3({
                   <option>UNFIT</option>
                 </select>
               </td>
-              <td>{w.admittedAt.slice(0, 10)}</td>
+              <td>{formatDate(w.admittedAt)}</td>
               <td>
                 <div className="row-actions">
                   <Button
@@ -354,7 +357,7 @@ export function ClinicalPhase3({
       {module === "OT" && (
         <OtView
           data={data.ot.filter((x) =>
-            `${x.name} ${x.patientCode} ${x.diagnosis} ${x.procedureName} ${x.surgeonName} ${x.scheduledDate}`
+            `${x.name} ${x.patientCode} ${x.diagnosis} ${x.procedureName} ${x.surgeonName} ${x.scheduledDate} ${formatDate(x.scheduledDate)}`
               .toLowerCase()
               .includes(q),
           )}
@@ -557,7 +560,7 @@ function OtView({
               <tr key={o.id}>
                 <td>
                   <strong>{o.scheduledTime}</strong>
-                  <small>{o.scheduledDate}</small>
+                  <small>{formatDate(o.scheduledDate)}</small>
                 </td>
                 <PatientCell p={o} />
                 <td>
