@@ -140,7 +140,7 @@ export default function LoginPage() {
         <Image src="/brand/dops-logo-full.png" alt="DOPS — Plastic & Reconstructive Surgery" width={529} height={600} priority unoptimized className="login-logo" />
       </div>
       <div className="login-hero-copy">
-        <h2>Plastic &amp; Reconstructive Surgery<br />Department Management</h2>
+        <h2>Plastic &amp; Reconstructive Surgery Department Management</h2>
         <p>OPD → IPD → Ward → OT → Discharge. Academics, Skin Bank, Leprosy &amp; CM Helpline — one continuous patient record.</p>
       </div>
       <p className="login-hero-foot">NSCB MEDICAL COLLEGE, JABALPUR</p>
@@ -211,7 +211,7 @@ export default function LoginPage() {
                 </select>
               </label>
             </div>
-            <label>Designation / note <span className="login-optional">(optional)</span><Input name="note" maxLength={300} placeholder="e.g. Senior Resident, Burns Unit" /></label>
+            <label><span>Designation / note <span className="login-optional">(optional)</span></span><Input name="note" maxLength={300} placeholder="e.g. Senior Resident, Burns Unit" /></label>
             {/* Hidden from people; bots that fill every field are ignored. */}
             <input type="text" name="website" tabIndex={-1} autoComplete="off" className="login-honeypot" aria-hidden="true" />
             {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}

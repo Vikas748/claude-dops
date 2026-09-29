@@ -318,3 +318,17 @@ test("Class / Research / Publication: PDF optional at creation, added or replace
   assert.doesNotMatch(ui, /accept="application\/pdf,\.pdf"\s*required/);
   assert.match(read("supabase/migrations/005_optional_academic_pdf.sql"), /alter column file_key\s+drop not null/);
 });
+
+test("brand, landing page and account requests", () => {
+  const login = read("app/login/page.tsx");
+  const req = read("app/api/auth/request-account/route.ts");
+  assert.match(login, /\/brand\/dops-logo-full\.png/);
+  assert.match(login, /Request an account/);
+  assert.match(req, /'PENDING','\[\]'/); // requests never get access by themselves
+  assert.match(req, /const ROLES = \["DOCTOR", "RESIDENT", "NURSE", "STAFF"\]/); // no self-requested ADMIN
+  assert.match(req, /website/); // honeypot
+  assert.match(read("app/api/admin/route.ts"), /Your DOPS access is ready/);
+  assert.match(read("proxy.ts"), /brand\//); // logo must load before sign-in
+  assert.equal(existsSync(join(root, "public/brand/dops-logo-full.png")), true);
+  assert.match(read("public/manifest.webmanifest"), /icon-512\.png/);
+});
