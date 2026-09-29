@@ -47,6 +47,9 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
   const [pinDevice, setPinDevice] = useState<PinDevice>(null);
+  // Until we know whether this browser has a PIN, show neither form, so the
+  // screen never switches from "email" to "PIN" while someone is typing.
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -88,7 +91,8 @@ export default function LoginPage() {
           setNotice({ text: "For security, confirm with your email code and set a PIN for this device.", tone: "info" });
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setReady(true));
   }, []);
 
   // Arrived here because a session ended (expired, signed out elsewhere, or access changed).
@@ -257,6 +261,7 @@ export default function LoginPage() {
 
     <section className="login-panel">
       <div className="login-card auth-card">
+        {!ready ? <div className="login-checking" role="status" aria-live="polite">Checking this device…</div> : <>
         <p className="login-eyebrow">{step === "request" || step === "requested" ? "NEW USER" : "SECURE ACCESS"}</p>
         <h1>{heading}</h1>
 
@@ -368,6 +373,7 @@ export default function LoginPage() {
           <Button type="button" className="login-primary" onClick={changeEmail}>Back to sign in</Button>
         </>}
 
+        </>}
         <small className="auth-note">Protected department system. Never share your sign-in code.</small>
       </div>
     </section>

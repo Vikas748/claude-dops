@@ -2096,3 +2096,5 @@ body {
 .login-primary { background: linear-gradient(135deg, #c89b4b, #a8751f) !important; }
 .login-primary:hover:not(:disabled) { background: linear-gradient(135deg, #b98b3d, #946518) !important; }
 .login-switch button { color: #7a5418; }
+
+.login-checking { min-height: 220px; display: grid; place-items: center; color: #8a7f6d; font-size: .95rem; }
