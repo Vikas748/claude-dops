@@ -24,7 +24,7 @@ DOPS is a private, mobile-responsive application for the Department of Burn & Pl
 ## Local setup
 
 1. Copy `.env.example` to `.env.local` and enter your Supabase values.
-2. In the Supabase SQL Editor run `supabase/schema.sql`, then every file in `supabase/migrations/` in order (001 → 004).
+2. In the Supabase SQL Editor run `supabase/schema.sql`, then every file in `supabase/migrations/` in order (001 → 006).
 3. Install and verify:
 
 ```bash
@@ -43,7 +43,7 @@ Follow [Vercel deployment guide](docs/VERCEL_DEPLOYMENT.md). Never commit `.env.
 
 In short:
 
-1. Supabase (Mumbai region): run `supabase/schema.sql` and `supabase/migrations/001…004`.
+1. Supabase (Mumbai region): run `supabase/schema.sql` and `supabase/migrations/001…006`.
 2. Vercel environment variables: `SUPABASE_DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `DOPS_BOOTSTRAP_ADMIN_EMAIL`, `AUTH_SECRET`, `DATA_ENCRYPTION_KEY` (**keep an offline copy**), `CRON_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`; optional `HEALTH_CHECK_TOKEN`, `REPORT_EMAILS`.
 3. Deploy, then open `/api/health?deep=1&token=…` — every check must be green.
 4. Sign in with the bootstrap admin email, set your name, add staff under **Admin → Users**.

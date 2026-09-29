@@ -28,7 +28,7 @@ c,d,sc=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code
 ok(d.get("offerPin") is True, "P14 after a lock, email sign-in offers a new PIN")
 call("POST","/api/auth/pin",{"action":"setup","pin":"3691","confirm":"3691"},cookie=f"{s2}; {dev}")
 c,_,_=call("POST","/api/auth/pin",{"action":"login","pin":"3691"},cookie=dev); ok(c==200 and sql("select count(*) from auth_devices")=="1", "P15 new PIN replaces the locked one on the same device")
-with concurrent.futures.ThreadPoolExecutor(10) as ex: codes=[f.result()[0] for f in [ex.submit(call,"POST","/api/auth/pin",{"action":"login","pin":"1111"},None,dev) for _ in range(10)]]
+with concurrent.futures.ThreadPoolExecutor(10) as ex: codes=[f.result()[0] for f in [ex.submit(call,"POST","/api/auth/pin",{"action":"login","pin":"1111"},dev) for _ in range(10)]]
 fa=int(sql("select failed_attempts from auth_devices")); ok(fa<=5 and codes.count(423)>=5, f"P16 10 parallel guesses: counted {fa}, never above 5 ({sorted(codes)})")
 sql("update auth_devices set failed_attempts=0, locked_at=null")
 admin=s2; uid=int(sql("select id from department_users where email='head.dept@hospital.in'"))

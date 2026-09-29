@@ -235,7 +235,7 @@ export default function LoginPage() {
             <label htmlFor="pin-code">PIN</label>
             <InputOTP id="pin-code" ref={pinInput} maxLength={4} value={pin} onChange={(v) => setPin(v.replace(/\D/g, ""))} onComplete={(v: string) => void pinLogin(v)}
               pattern="^[0-9]*$" inputMode="numeric" disabled={busy} containerClassName="auth-otp" autoFocus>
-              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" aria-invalid={notice?.tone === "error" || undefined} />)}</InputOTPGroup>
+              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" masked aria-invalid={notice?.tone === "error" || undefined} />)}</InputOTPGroup>
             </InputOTP>
             {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
             <Button className="login-primary" disabled={busy || pin.length !== 4}><KeyRound /> {busy ? "Signing in…" : "Sign in with PIN"}</Button>
@@ -249,11 +249,11 @@ export default function LoginPage() {
           <form onSubmit={savePin}>
             <label htmlFor="pin-new">New PIN</label>
             <InputOTP id="pin-new" ref={pinInput} maxLength={4} value={pin} onChange={(v) => setPin(v.replace(/\D/g, ""))} pattern="^[0-9]*$" inputMode="numeric" disabled={busy} containerClassName="auth-otp">
-              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" />)}</InputOTPGroup>
+              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" masked />)}</InputOTPGroup>
             </InputOTP>
             <label htmlFor="pin-confirm">Confirm PIN</label>
             <InputOTP id="pin-confirm" maxLength={4} value={pinConfirm} onChange={(v) => setPinConfirm(v.replace(/\D/g, ""))} pattern="^[0-9]*$" inputMode="numeric" disabled={busy} containerClassName="auth-otp">
-              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" />)}</InputOTPGroup>
+              <InputOTPGroup>{[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} className="auth-otp-slot pin-slot" masked />)}</InputOTPGroup>
             </InputOTP>
             {notice && <div className={`auth-message${notice.tone === "error" ? " is-error" : ""}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
             <Button className="login-primary" disabled={busy || pin.length !== 4 || pinConfirm.length !== 4}><KeyRound /> {busy ? "Saving…" : "Save PIN"}</Button>

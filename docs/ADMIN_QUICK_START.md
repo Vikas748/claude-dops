@@ -44,3 +44,12 @@ Use clearly labelled dummy patients only. Test the complete OPD → IPD → Ward
 ## Before restore
 
 Stop routine data entry, obtain authorization, download a fresh backup if possible and verify the recovery package. After restore, check users, recent patients, documents, reports and audit logs before reopening the system.
+
+
+## New account requests
+
+People can click **Request an account** on the sign-in page. Their account is created as `PENDING` (no access) and every active Admin receives an email. To approve: **Admin → Users** → edit the person → set Status to `ACTIVE` and tick only the modules they need. They then receive a "Your DOPS access is ready" email. If you do not recognise the person, leave the request `PENDING` or set it to `INACTIVE`. Nobody can request the Admin role.
+
+## Quick sign-in PIN
+
+After signing in with the email code, users may set a 4-digit PIN **for that device only** (they should choose "Skip for now" on shared computers). On that device they can later sign in with the PIN. Five wrong PINs lock it; the email code is then needed and a new PIN can be set. "Remove PIN from this device" on the sign-in page deletes it. Deactivating a user also stops their PIN.
