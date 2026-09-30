@@ -3,6 +3,9 @@ import { istDate } from "@/lib/dates";
 import { claimUploads, discardUploads, UploadError, type ClaimedUpload } from "@/lib/uploads";
 import { getDopsAccess, hasPermission, isResponse, requirePermission } from "@/lib/access";
 import { actorDetails, enforceRequestSize, rateLimit, rejectCrossSiteMutation } from "@/lib/security";
+/** How a patient can leave the ward. */
+const WARD_EXIT = ["DISCHARGED", "LAMA", "DOR", "DAMA"];
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
@@ -13,12 +16,12 @@ export async function GET() {
     const [ipd, ward, ot] = await Promise.all([
       db
         .prepare(
-          `SELECT i.id,i.patient_id AS patientId,i.diagnosis,i.admission_date AS admissionDate,i.plan_management AS planManagement,i.ayushman_code AS ayushmanCode,i.status,p.patient_code AS patientCode,p.opd_number AS opdNumber,p.name,p.age,p.sex,p.mobile FROM ipd_admissions i JOIN patients p ON p.id=i.patient_id WHERE p.deleted_at IS NULL ORDER BY i.id DESC`,
+          `SELECT i.id,i.patient_id AS patientId,i.diagnosis,i.admission_date AS admissionDate,i.plan_management AS planManagement,i.ayushman_code AS ayushmanCode,i.case_category AS caseCategory,i.status,p.patient_code AS patientCode,p.opd_number AS opdNumber,p.name,p.age,p.sex,p.mobile FROM ipd_admissions i JOIN patients p ON p.id=i.patient_id WHERE p.deleted_at IS NULL ORDER BY i.id DESC`,
         )
         .all(),
       db
         .prepare(
-          `SELECT w.id AS wardId,w.ipd_id AS ipdId,w.ward_name AS wardName,w.bed_number AS bedNumber,w.pac_status AS pacStatus,w.admitted_at AS admittedAt,w.discharged_at AS dischargedAt,i.diagnosis,p.patient_code AS patientCode,p.opd_number AS opdNumber,p.name,p.age,p.sex FROM ward_stays w JOIN ipd_admissions i ON i.id=w.ipd_id JOIN patients p ON p.id=i.patient_id ORDER BY w.id DESC`,
+          `SELECT w.id AS wardId,w.ipd_id AS ipdId,w.ward_name AS wardName,w.bed_number AS bedNumber,w.pac_status AS pacStatus,w.admitted_at AS admittedAt,w.discharged_at AS dischargedAt,w.discharge_status AS dischargeStatus,i.case_category AS caseCategory,i.diagnosis,p.patient_code AS patientCode,p.opd_number AS opdNumber,p.name,p.age,p.sex FROM ward_stays w JOIN ipd_admissions i ON i.id=w.ipd_id JOIN patients p ON p.id=i.patient_id ORDER BY w.id DESC`,
         )
         .all(),
       db
@@ -46,12 +49,30 @@ export async function POST(request: Request) {
       const rejected=rejectCrossSiteMutation(request)??enforceRequestSize(request,32*1024)??rateLimit(access,"discharge",12,60_000);if(rejected)return rejected;
       return discharge(b, access);
     }
-    const permissionModule=action==="update_ipd"?"IPD":action==="schedule_ot"||action==="ot_status"?"OT":"WARD";
+    const permissionModule=action==="update_ipd"||action==="case_category"?"IPD":action==="schedule_ot"||action==="ot_status"?"OT":"WARD";
     const permissionAction=action==="schedule_ot"||action==="move_ward"?"CREATE":"EDIT";
     const access=await requirePermission(permissionModule, permissionAction);if(isResponse(access))return access;
     const rejected=rejectCrossSiteMutation(request)??enforceRequestSize(request,64*1024)??rateLimit(access,"clinical-action",50,60_000);if(rejected)return rejected;
     const db = getDopsDb(),
       now = new Date().toISOString();
+    if (action === "case_category") {
+      // IPD "CASE CATEGORY": MLC or NON-MLC (shown in IPD and Ward)
+      const id = Number(b.id), category = String(b.category ?? "").toUpperCase();
+      if (!id || !["MLC", "NON-MLC", ""].includes(category)) return jsonError("Choose MLC or NON-MLC.");
+      const row = await db.prepare("UPDATE ipd_admissions SET case_category=?,updated_at=? WHERE id=? RETURNING id").bind(category || null, now, id).first();
+      if (!row) return jsonError("IPD record not found.", 404);
+      await audit(db, access, "UPDATE", "IPD", id, `Case category: ${category || "not set"}`, now).run();
+      return Response.json({ success: true });
+    }
+    if (action === "ward_status") {
+      // Change how a patient left the ward (after discharge): DISCHARGED / LAMA / DOR / DAMA
+      const wardId = Number(b.wardId), status = String(b.status ?? "").toUpperCase();
+      if (!wardId || !WARD_EXIT.includes(status)) return jsonError("Choose DISCHARGED, LAMA, DOR or DAMA.");
+      const row = await db.prepare("UPDATE ward_stays SET discharge_status=?,updated_at=? WHERE id=? AND discharged_at IS NOT NULL RETURNING ipd_id AS \"ipdId\"").bind(status, now, wardId).first<{ ipdId: number }>();
+      if (!row) return jsonError("Only a patient who has left the ward has this status.", 404);
+      await audit(db, access, "UPDATE", "WARD", row.ipdId, `Ward status changed to ${status}`, now).run();
+      return Response.json({ success: true });
+    }
     if (action === "update_ipd") {
       const id = Number(b.id),
         plan = String(b.planManagement ?? "").trim(),
@@ -178,7 +199,9 @@ async function discharge(b: Record<string, unknown>, access: Awaited<ReturnType<
   const db = getDopsDb(),
     now = new Date().toISOString(),
     wardId = Number(b.wardId),
-    notes = String(b.notes ?? "").trim();
+    notes = String(b.notes ?? "").trim(),
+    exitStatus = String(b.status ?? "DISCHARGED").toUpperCase();
+  if (!WARD_EXIT.includes(exitStatus)) return jsonError("Choose DISCHARGED, LAMA, DOR or DAMA.");
   const row = await db
     .prepare(
       "SELECT ipd_id AS ipdId FROM ward_stays WHERE id=? AND discharged_at IS NULL",
@@ -199,8 +222,8 @@ async function discharge(b: Record<string, unknown>, access: Awaited<ReturnType<
   try {
     await db.batch([
       db
-        .prepare("UPDATE ward_stays SET discharged_at=?,updated_at=? WHERE id=?")
-        .bind(now, now, wardId),
+        .prepare("UPDATE ward_stays SET discharged_at=?,discharge_status=?,updated_at=? WHERE id=?")
+        .bind(now, exitStatus, now, wardId),
       db
         .prepare(
           "UPDATE ipd_admissions SET status='DISCHARGED',updated_at=? WHERE id=?",
@@ -211,7 +234,7 @@ async function discharge(b: Record<string, unknown>, access: Awaited<ReturnType<
           "INSERT INTO discharge_records (ipd_id,discharge_date,notes,card_key,card_name,created_at) VALUES (?,?,?,?,?,?)",
         )
         .bind(row.ipdId, istDate(), notes, card?.key ?? null, card?.fileName ?? null, now),
-      audit(db, access, "DISCHARGE", "WARD", row.ipdId, "Patient discharged", now),
+      audit(db, access, "DISCHARGE", "WARD", row.ipdId, `Patient left the ward: ${exitStatus}`, now),
     ]);
   } catch (error) {
     if (card) await discardUploads([card]);

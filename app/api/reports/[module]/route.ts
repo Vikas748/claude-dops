@@ -20,15 +20,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ modu
     const from = url.searchParams.get("from") || fallback.from;
     const to = url.searchParams.get("to") || fallback.to;
     const format = url.searchParams.get("format") === "csv" ? "csv" : "pdf";
-    if (reportModule !== "opd" && reportModule !== "ot") return jsonError("Invalid report module.", 404);
-    const access = await requirePermission(reportModule.toUpperCase(), "EXPORT");
+    if (!["opd", "emergency", "ot"].includes(reportModule)) return jsonError("Invalid report module.", 404);
+    const access = await requirePermission(reportModule === "ot" ? "OT" : "OPD", "EXPORT");
     if (isResponse(access)) return access;
 
     const report = await loadReport(reportModule, from, to);
     // Downloading a whole register is an audited event (who took which data, when).
     await getDopsDb()
       .prepare("INSERT INTO audit_logs (action,module,record_id,details,created_at) VALUES ('EXPORT',?,NULL,?,?)")
-      .bind(reportModule.toUpperCase(), actorDetails(access, `${report.title} ${from} to ${to} (${format.toUpperCase()}, ${report.rows.length} rows)`), new Date().toISOString())
+      .bind(reportModule === "ot" ? "OT" : "OPD", actorDetails(access, `${report.title} ${from} to ${to} (${format.toUpperCase()}, ${report.rows.length} rows)`), new Date().toISOString())
       .run();
     const headers = {
       "cache-control": "private, no-store",

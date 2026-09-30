@@ -10,13 +10,16 @@ export async function GET(request: Request) {
     const access = await requirePermission("OPD", "VIEW");
     if (isResponse(access)) return access;
     const db = getDopsDb();
-    const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+    const url = new URL(request.url);
+    const q = url.searchParams.get("q")?.trim() ?? "";
+    // "OPD" (default), "EMERGENCY" (Emergency OPD) or "ALL" (dashboard search)
+    const type = (url.searchParams.get("type") ?? "OPD").toUpperCase();
     const like = likePattern(q);
     const result = await db
       .prepare(
-        `SELECT p.id, p.patient_code AS patientCode, p.name, p.age, p.sex, p.mobile, p.address, p.opd_number AS opdNumber, o.id AS opdId, o.diagnosis, o.visit_date AS visitDate, o.status FROM patients p JOIN opd_visits o ON o.patient_id=p.id WHERE p.deleted_at IS NULL AND o.deleted_at IS NULL AND (?='' OR p.name ILIKE ? OR p.patient_code ILIKE ? OR p.mobile ILIKE ? OR p.opd_number ILIKE ? OR o.diagnosis ILIKE ? OR o.visit_date ILIKE ?) ORDER BY o.visit_date DESC,o.id DESC LIMIT 200`,
+        `SELECT p.id, p.patient_code AS patientCode, p.name, p.age, p.sex, p.mobile, p.address, p.opd_number AS opdNumber, o.id AS opdId, o.diagnosis, o.visit_date AS visitDate, o.status, o.visit_type AS visitType FROM patients p JOIN opd_visits o ON o.patient_id=p.id WHERE p.deleted_at IS NULL AND o.deleted_at IS NULL AND (? = 'ALL' OR o.visit_type = ?) AND (?='' OR p.name ILIKE ? OR p.patient_code ILIKE ? OR p.mobile ILIKE ? OR p.opd_number ILIKE ? OR o.diagnosis ILIKE ? OR o.visit_date ILIKE ?) ORDER BY o.visit_date DESC,o.id DESC LIMIT 200`,
       )
-      .bind(q, like, like, like, like, like, like)
+      .bind(type, type, q, like, like, like, like, like, like)
       .all();
     return Response.json({ success: true, data: result.results });
   } catch (error) {
@@ -33,6 +36,7 @@ export async function POST(request: Request) {
     if (rejected) return rejected;
     const b = (await request.json()) as Record<string, unknown>;
     const name = String(b.name ?? "").trim();
+    const visitType = String(b.visitType ?? "OPD").toUpperCase() === "EMERGENCY" ? "EMERGENCY" : "OPD";
     const age = Number(b.age);
     const sex = String(b.sex ?? "");
     const mobile = String(b.mobile ?? "").replace(/\D/g, "");
@@ -82,14 +86,14 @@ export async function POST(request: Request) {
         .bind(code, inserted.id),
       db
         .prepare(
-          "INSERT INTO opd_visits (patient_id,diagnosis,visit_date,status,created_at,updated_at) VALUES (?,?,?,'OPD',?,?)",
+          "INSERT INTO opd_visits (patient_id,diagnosis,visit_date,status,visit_type,created_at,updated_at) VALUES (?,?,?,'OPD',?,?,?)",
         )
-        .bind(inserted.id, diagnosis, day, now, now),
+        .bind(inserted.id, diagnosis, day, visitType, now, now),
       db
         .prepare(
           "INSERT INTO audit_logs (action,module,record_id,details,created_at) VALUES ('CREATE','OPD',?,?,?)",
         )
-        .bind(inserted.id, actorDetails(access, `Registered ${code}`), now),
+        .bind(inserted.id, actorDetails(access, `Registered ${code}${visitType === "EMERGENCY" ? " (Emergency OPD)" : ""}`), now),
     ]);
     return Response.json(
       { success: true, data: { id: inserted.id, patientCode: code } },

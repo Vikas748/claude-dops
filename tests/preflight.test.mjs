@@ -34,7 +34,8 @@ test("monthly OPD and OT archive is generated from saved records", () => {
   const page = read("app/page.tsx");
   assert.match(route, /substr\(visit_date,1,7\)/);
   assert.match(route, /substr\(scheduled_date,1,7\)/);
-  assert.match(route, /requirePermission\(reportModule\.toUpperCase\(\), "EXPORT"\)/);
+  assert.match(route, /requirePermission\(reportModule === "ot" \? "OT" : "OPD", "EXPORT"\)/); // Emergency OPD uses OPD permissions
+  assert.match(route, /visit_type=\?/);
   assert.match(page, /Monthly.*report archive/);
 });
 
@@ -63,7 +64,7 @@ test("Skin Bank supports protected custom columns and row history (no formula bo
 test("PostgreSQL migrations are ordered and safe to re-run", () => {
   const dir = join(root, "supabase/migrations");
   const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
-  assert.deepEqual(files, ["001_email_otp_auth.sql", "002_direct_uploads.sql", "003_search_indexes.sql", "004_job_runs.sql", "005_optional_academic_pdf.sql", "006_device_pins.sql", "007_opd_number.sql"]);
+  assert.deepEqual(files, ["001_email_otp_auth.sql", "002_direct_uploads.sql", "003_search_indexes.sql", "004_job_runs.sql", "005_optional_academic_pdf.sql", "006_device_pins.sql", "007_opd_number.sql", "008_polish_round.sql"]);
   for (const file of files) {
     const sql = readFileSync(join(dir, file), "utf8").toLowerCase();
     for (const m of sql.matchAll(/create (table|index|unique index|extension|schema) (?!if not exists)/g)) assert.fail(`${file}: "${m[0]}" is not idempotent`);

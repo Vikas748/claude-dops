@@ -15,7 +15,7 @@ import PDFDocument from "pdfkit";
 import { getDopsDb } from "@/lib/dops-db";
 import { csvCell } from "@/lib/security";
 
-export type ReportModule = "opd" | "ot";
+export type ReportModule = "opd" | "emergency" | "ot";
 
 type Column = { key: string; label: string; width: number; align?: "left" | "right" | "center" };
 
@@ -48,7 +48,27 @@ const REPORTS: Record<ReportModule, { title: string; columns: Column[]; sql: str
     sql: `SELECT o.visit_date AS "date", p.patient_code AS "patientId", p.opd_number AS "opdNumber", p.name AS "name", p.age AS "age",
                  p.sex AS "sex", o.diagnosis AS "diagnosis", p.mobile AS "mobile", p.address AS "address"
             FROM opd_visits o JOIN patients p ON p.id = o.patient_id
-           WHERE o.deleted_at IS NULL AND p.deleted_at IS NULL AND o.visit_date BETWEEN ? AND ?
+           WHERE o.deleted_at IS NULL AND p.deleted_at IS NULL AND o.visit_type = 'OPD' AND o.visit_date BETWEEN ? AND ?
+           ORDER BY o.visit_date, o.id`,
+  },
+  emergency: {
+    title: "Emergency OPD Register",
+    // Widths are relative; they are scaled to the page width.
+    columns: [
+      { key: "date", label: "Date", width: 62 },
+      { key: "patientId", label: "Patient ID", width: 88 },
+      { key: "opdNumber", label: "OPD No./UHID", width: 78 },
+      { key: "name", label: "Name", width: 125 },
+      { key: "age", label: "Age", width: 32, align: "right" },
+      { key: "sex", label: "Sex", width: 44 },
+      { key: "diagnosis", label: "Diagnosis", width: 190 },
+      { key: "mobile", label: "Mobile", width: 72 },
+      { key: "address", label: "Address", width: 140 },
+    ],
+    sql: `SELECT o.visit_date AS "date", p.patient_code AS "patientId", p.opd_number AS "opdNumber", p.name AS "name", p.age AS "age",
+                 p.sex AS "sex", o.diagnosis AS "diagnosis", p.mobile AS "mobile", p.address AS "address"
+            FROM opd_visits o JOIN patients p ON p.id = o.patient_id
+           WHERE o.deleted_at IS NULL AND p.deleted_at IS NULL AND o.visit_type = 'EMERGENCY' AND o.visit_date BETWEEN ? AND ?
            ORDER BY o.visit_date, o.id`,
   },
   ot: {
@@ -203,7 +223,7 @@ export async function renderReportPdf(report: ReportData, options: { generatedBy
   doc.font("bold").fontSize(13).fillColor(INK).text(`${report.title} — ${periodLabel(report.from, report.to)}`, left, y, { width: usable });
   y = doc.y + 2;
   doc.font("body").fontSize(9).fillColor(MUTED);
-  const count = `Total ${report.module === "opd" ? "patients" : "procedures"}: ${report.rows.length}`;
+  const count = `Total ${report.module !== "ot" ? "patients" : "procedures"}: ${report.rows.length}`;
   doc.text(`Period: ${displayDate(report.from)} to ${displayDate(report.to)}    |    ${count}`, left, y, { width: usable * 0.65 });
   doc.text(`Generated: ${istNow(options.now)}${options.generatedBy ? ` by ${clean(options.generatedBy)}` : ""}`, left + usable * 0.45, y, {
     width: usable * 0.55,
