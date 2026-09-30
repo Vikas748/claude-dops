@@ -29,6 +29,7 @@ git push -u origin main
    5. `supabase/migrations/004_job_runs.sql`
    6. `supabase/migrations/005_optional_academic_pdf.sql`
    7. `supabase/migrations/006_device_pins.sql`
+   8. `supabase/migrations/007_opd_number.sql`
 
    All are safe to run again if you are unsure whether they ran.
 3. Open **Storage** and confirm that the private bucket `dops-private` exists (the first script creates it).

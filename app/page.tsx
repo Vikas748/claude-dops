@@ -1088,7 +1088,7 @@ function OpdPage({
           <span>Patient IDs generated automatically</span>
         </div>
         <div className="table-scroll">
-          <table className="opd-table">
+          <table className="opd-table opd-patients-table">
             <thead>
               <tr>
                 <th className="col-patient">Patient</th>

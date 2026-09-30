@@ -55,6 +55,7 @@ if [ "${1:-}" = "--browser" ]; then
   fresh; run step3
   fresh; run step4
   fresh; run step5
+  fresh; run step6
 fi
 pkill -P $APP 2>/dev/null; kill $APP 2>/dev/null
 echo

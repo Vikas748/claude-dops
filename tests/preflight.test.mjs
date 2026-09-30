@@ -359,3 +359,24 @@ test("app lock: PIN on every open, enforced by the server", () => {
   assert.match(read("app/api/auth/verify-otp/route.ts"), /requirePin/);
   assert.doesNotMatch(read("proxy.ts"), /signedIn && publicAuthPage/);
 });
+
+test("round 3: OPD No./UHID No. required and unique; DD-MM-YYYY; headings without labels", () => {
+  const post = read("app/api/patients/route.ts");
+  const patch = read("app/api/patients/[id]/route.ts");
+  for (const r of [post, patch]) {
+    assert.match(r, /readOpdNumber\(b\.opdNumber\)/);
+    assert.match(r, /duplicateOpdMessage/);
+  }
+  assert.match(post, /p\.opd_number ILIKE \?/); // searchable
+  assert.match(read("supabase/migrations/007_opd_number.sql"), /create unique index if not exists idx_patients_opd_number_unique/);
+  assert.match(read("lib/dates.ts"), /export function formatDate/);
+  assert.match(read("lib/reports.ts"), /return `\$\{d\}-\$\{m\}-\$\{y\}`/);
+  for (const f of ["app/page.tsx", "components/clinical-phase3.tsx", "components/academic-module.tsx", "components/special-module.tsx", "components/admin-module.tsx"]) {
+    const s = read(f);
+    assert.doesNotMatch(s, /className="eyebrow">(CLINICAL WORKSPACE|ACADEMIC WORKSPACE|SPECIAL REGISTERS|ACCESS CONTROL)</);
+    assert.match(s, /className="section-title"/);
+  }
+  assert.match(read("app/page.tsx"), /title="ACADEMIC WORKSPACE"/);
+  assert.doesNotMatch(read("app/page.tsx"), /Patient ID continuity|<h2>Production readiness<\/h2>/);
+  assert.match(read("components/special-module.tsx"), /\{!isSkin && <th>Status<\/th>\}/);
+});

@@ -1,6 +1,11 @@
 import json, urllib.request, glob, email, re, subprocess, time, os
 B="http://127.0.0.1:3100"
 def call(method, path, body=None, cookie=None, bearer=None):
+    # OPD No./UHID No. is required for patients (round 3); older tests that do not
+    # care about it get a unique test number automatically.
+    if isinstance(body, dict) and method in ("POST", "PATCH") and path.split("?")[0].rstrip("/").split("/")[:3] == ["", "api", "patients"] and "opdNumber" not in body:
+        import uuid as _uuid
+        body = {**body, "opdNumber": "T-" + _uuid.uuid4().hex[:10]}
     h={"content-type":"application/json"}
     if cookie: h["cookie"]=cookie
     if bearer: h["authorization"]="Bearer "+bearer

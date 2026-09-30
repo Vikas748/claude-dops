@@ -2133,3 +2133,10 @@ body {
 .skin-tab[data-state="active"] { color: #fff !important; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
 .skin-tab-recipient[data-state="active"] { background: #c8860f !important; }
 .skin-tab-donor[data-state="active"] { background: #1f8a5b !important; }
+.workspace .welcome-row .eyebrow.dash-overview { font-size: 25px !important; font-weight: 800 !important; letter-spacing: 0.04em !important; line-height: 1.15; margin: 0 0 6px; }
+/* Round 3 polish: keep IDs, dates, numbers and actions on one line; table scrolls inside its box if needed */
+.opd-table th.col-patient { width: auto; min-width: 150px; }
+.opd-patients-table td:first-child small { white-space: nowrap; }
+.opd-patients-table td:nth-child(2), .opd-patients-table td:nth-child(5), .opd-patients-table td:nth-child(7), .opd-patients-table td:last-child, .opd-patients-table th { white-space: nowrap; }
+.opd-patients-table .row-actions { flex-wrap: nowrap; }
+.nav-box .nav-box-label { font-size: 13px !important; letter-spacing: 0.06em; white-space: nowrap; }
