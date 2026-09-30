@@ -194,8 +194,7 @@ export function SpecialModule({
     <>
       <section className="welcome-row">
         <div>
-          <p className="eyebrow">SPECIAL REGISTERS</p>
-          <h1>{module}</h1>
+          <h1 className="section-title">{module}</h1>
           <p>
             {kind === "HELPLINE"
               ? "Cases are added from the Ward. Update status and notes here."
@@ -229,8 +228,8 @@ export function SpecialModule({
       {module === "Skin Bank" && (
         <Tabs value={kind} onValueChange={setKind}>
           <TabsList>
-            <TabsTrigger value="SKIN_RECIPIENT">Recipients</TabsTrigger>
-            <TabsTrigger value="SKIN_DONOR">Donors</TabsTrigger>
+            <TabsTrigger value="SKIN_RECIPIENT" className="skin-tab skin-tab-recipient">RECIPIENTS</TabsTrigger>
+            <TabsTrigger value="SKIN_DONOR" className="skin-tab skin-tab-donor">DONORS</TabsTrigger>
           </TabsList>
         </Tabs>
       )}

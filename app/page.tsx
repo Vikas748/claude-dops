@@ -491,7 +491,7 @@ export default function Home() {
             setActive={setActive}
           />
           <NavGroup
-            title="ACADEMIC & SPECIAL"
+            title="ACADEMIC WORKSPACE"
             items={visibleModules.filter((item) => modules.slice(5).includes(item))}
             active={active}
             setActive={setActive}
@@ -821,8 +821,12 @@ function NavGroup({
   setActive: (s: string) => void;
 }) {
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>{title}</SidebarGroupLabel>
+    <SidebarGroup className="nav-box">
+      {/* A boxed group with a count, so it is clear which items belong to it */}
+      <SidebarGroupLabel className="nav-box-label">
+        <span>{title}</span>
+        <span className="nav-box-count" aria-label={`${items.length} sections`}>{items.length}</span>
+      </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map(({ label, icon: Icon }) => (
@@ -943,8 +947,8 @@ function Dashboard({
     <>
       <section className="welcome-row">
         <div>
-          <p className="eyebrow">DEPARTMENT OVERVIEW</p>
-          <h1>{greetingFor(userName)}</h1>
+          <p className="eyebrow dash-overview">DEPARTMENT OVERVIEW</p>
+          <h1 className="greeting">{greetingFor(userName)}</h1>
           <p>Clinical records are now connected to the permanent database.</p>
         </div>
         <Button className="new-patient" onClick={openForm}>
@@ -973,7 +977,7 @@ function Dashboard({
           </article>
         ))}
       </section>
-      <section className="content-grid">
+      <section className="content-grid content-grid-full">
         <article className="panel activity-panel">
           <div className="panel-head">
             <div>
@@ -1029,45 +1033,6 @@ function Dashboard({
             </div>
           )}
         </article>
-        <aside className="side-stack">
-          <article className="panel ot-panel">
-            <div className="panel-head">
-              <div>
-                <h2>Patient ID continuity</h2>
-                <p>One record across every module</p>
-              </div>
-              <ShieldCheck />
-            </div>
-            <div className="workflow">
-              <b>OPD</b>
-              <ChevronRight />
-              <b>IPD</b>
-              <ChevronRight />
-              <b>Ward</b>
-              <ChevronRight />
-              <b>OT</b>
-            </div>
-            <p>
-              Demographics and diagnosis carry forward automatically when a
-              patient is admitted.
-            </p>
-          </article>
-          <article className="panel attention">
-            <div className="panel-head">
-              <div>
-                <h2>Production readiness</h2>
-                <p>Security and resilience active</p>
-              </div>
-              <span className="fit">LIVE</span>
-            </div>
-            <div className="phase-list">
-              <span>✓ API permission enforcement</span>
-              <span>✓ Sensitive data masking</span>
-              <span>✓ Duplicate patient protection</span>
-              <span>✓ Installable offline app shell</span>
-            </div>
-          </article>
-        </aside>
       </section>
     </>
   );
@@ -1098,8 +1063,7 @@ function OpdPage({
     <>
       <section className="welcome-row">
         <div>
-          <p className="eyebrow">CLINICAL WORKSPACE</p>
-          <h1>OPD Patients</h1>
+          <h1 className="section-title">OPD Patients</h1>
           <p>
             Register, search and admit patients without duplicate data entry.
           </p>

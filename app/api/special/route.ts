@@ -128,7 +128,7 @@ export async function GET(request: Request) {
             "Name of State: MADHYA PRADESH",
             kind.startsWith("SKIN_") ? "Name of Skin Bank: JABALPUR SKIN BANK" : "Department: BURN & PLASTIC SURGERY",
             "Address: DEPT. OF BURN & PLASTIC SURGERY, NSCB MEDICAL COLLEGE JABALPUR",
-            `Period: ${from} to ${to}    Total: ${rows.length}`,
+            `Period: ${formatDate(from)} to ${formatDate(to)}    Total: ${rows.length}`,
           ],
           headers,
           rows: rows.map((row, i) => [i + 1, formatDate(row.recordDate), row.primaryName, ...(skin ? [] : [row.status]), ...keys.map((k) => cell((row.payload as Record<string, unknown>)[k]))]),

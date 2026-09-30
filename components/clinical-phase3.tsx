@@ -201,8 +201,7 @@ export function ClinicalPhase3({
     <>
       <div className="module-heading">
         <div>
-          <p className="eyebrow">CLINICAL WORKSPACE</p>
-          <h1>{module}</h1>
+          <h1 className="section-title">{module}</h1>
           <p>
             {module === "IPD"
               ? "Manage treatment plans and transfer admitted patients to Ward."

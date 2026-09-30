@@ -313,8 +313,7 @@ export function AdminModule({ notify }: { notify: (m: string) => void }) {
     <>
       <section className="welcome-row">
         <div>
-          <p className="eyebrow">ACCESS CONTROL</p>
-          <h1>Administration</h1>
+          <h1 className="section-title">Administration</h1>
           <p>Approve users, assign roles and control every module action.</p>
         </div>
         <Button

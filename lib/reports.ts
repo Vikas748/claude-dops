@@ -100,7 +100,6 @@ export async function loadReport(module: string, from: string, to: string): Prom
 
 // ---------- formatting helpers ----------
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** 2026-09-07 -> 07-09-2026 (the DOPS display format everywhere) */
 export function displayDate(value: unknown) {

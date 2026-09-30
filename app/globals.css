@@ -2098,3 +2098,38 @@ body {
 .login-switch button { color: #7a5418; }
 
 .login-checking { min-height: 220px; display: grid; place-items: center; color: #8a7f6d; font-size: .95rem; }
+
+/* ===== Client change round 3 ===== */
+/* No empty band under the top bar: the workspace no longer centres itself vertically */
+.workspace { margin: 0 auto; padding-top: 20px; }
+.welcome-row, .module-heading { margin-bottom: 18px; }
+/* Page headings in capitals and bold (OPD PATIENTS, IPD, CLASS, SKIN BANK, ADMINISTRATION…) */
+.section-title { text-transform: uppercase; font-weight: 800 !important; letter-spacing: 0.01em; }
+/* Dashboard: "DEPARTMENT OVERVIEW" as large as the greeting; greeting slightly smaller */
+.welcome-row h1.greeting { font-size: 25px; }
+.eyebrow.dash-overview { font-size: 25px; font-weight: 800; letter-spacing: 0.04em; line-height: 1.15; margin: 0 0 6px; }
+.content-grid.content-grid-full { grid-template-columns: minmax(0, 1fr); }
+
+/* Sidebar: logo subtitle bold; each group in a box with a count */
+.brand-block span { font-weight: 800; color: #f1dcac; font-size: 12px; letter-spacing: 0.1em; }
+.nav-box { margin: 12px 0 4px; padding: 8px 6px 10px; border: 1px solid #3a3226; border-radius: 14px; background: #1a1814; }
+.nav-box .nav-box-label { display: flex !important; align-items: center; justify-content: space-between; gap: 8px; height: auto !important; padding: 6px 8px 10px !important;
+  font-size: 13.5px !important; font-weight: 800 !important; letter-spacing: 0.12em; color: #e5b965 !important; border-bottom: 1px solid #2e2a24; margin-bottom: 6px; }
+.nav-box-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: #c89b4b; color: #121212; font-size: 11.5px; font-weight: 800;
+  display: inline-grid; place-items: center; letter-spacing: 0; }
+
+/* OPD table: compact patient / OPD No. / age columns, more room for Diagnosis and Address */
+.opd-table th.col-patient { width: 16%; }
+.opd-table th.col-opdno { width: 11%; }
+.opd-table th.col-agesex { width: 7%; white-space: nowrap; }
+.opd-table .col-diagnosis { min-width: 220px; }
+.opd-table .col-address { min-width: 170px; }
+.muted-dash { color: #b3a998; }
+
+/* Skin Bank: coloured RECIPIENTS / DONORS tabs */
+.skin-tab { font-weight: 800 !important; letter-spacing: 0.06em; padding: 8px 18px !important; border-radius: 10px !important; color: #3b352c !important; }
+.skin-tab-recipient { background: #fcebc7 !important; }
+.skin-tab-donor { background: #cbf0dc !important; }
+.skin-tab[data-state="active"] { color: #fff !important; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+.skin-tab-recipient[data-state="active"] { background: #c8860f !important; }
+.skin-tab-donor[data-state="active"] { background: #1f8a5b !important; }

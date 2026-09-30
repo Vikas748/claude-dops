@@ -114,8 +114,7 @@ export function AcademicModule({
     <>
       <section className="welcome-row">
         <div>
-          <p className="eyebrow">ACADEMIC WORKSPACE</p>
-          <h1>{module}</h1>
+          <h1 className="section-title">{module}</h1>
           <p>
             {module === "Class"
               ? "Lecture notes and departmental teaching sessions."
