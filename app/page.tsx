@@ -31,6 +31,7 @@ import {
   WifiOff,
   RefreshCw,
   LogOut,
+  Siren,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,6 +98,7 @@ type Patient = {
   diagnosis: string;
   visitDate: string;
   status: "OPD" | "ADMITTED";
+  visitType?: "OPD" | "EMERGENCY";
 };
 type TimelineEvent = {
   id: string;
@@ -125,6 +127,7 @@ type UserAccess = {
 const modules = [
   { label: "Dashboard", icon: LayoutDashboard },
   { label: "OPD", icon: Stethoscope },
+  { label: "Emergency OPD", icon: Siren },
   { label: "IPD", icon: Ambulance },
   { label: "Ward", icon: BedDouble },
   { label: "OT", icon: Theater },
@@ -138,6 +141,7 @@ const modules = [
 ];
 const moduleKeys: Record<string, string> = {
   OPD: "OPD",
+  "Emergency OPD": "OPD", // same data and permissions as OPD
   IPD: "IPD",
   Ward: "WARD",
   OT: "OT",
@@ -170,7 +174,8 @@ export default function Home() {
   const load = async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/patients", { cache: "no-store" });
+      // OPD and Emergency OPD visits; each page shows its own.
+      const r = await fetch("/api/patients?type=ALL", { cache: "no-store" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.message);
       setRecords(j.data);
@@ -368,6 +373,8 @@ export default function Home() {
         )
       : records;
   }, [records, query]);
+  const isEmergency = (p: Patient) => p.visitType === "EMERGENCY";
+  const opdRecords = useMemo(() => records.filter((p) => !isEmergency(p)), [records]);
   const notify = (m: string) => {
     setNotice(m);
     window.setTimeout(() => setNotice(""), 3500);
@@ -392,6 +399,7 @@ export default function Home() {
       return;
     }
     try {
+      if (!editing) body.visitType = active === "Emergency OPD" ? "EMERGENCY" : "OPD";
       const url = editing ? `/api/patients/${editing.id}` : "/api/patients";
       const r = await fetch(url, {
         method: editing ? "PATCH" : "POST",
@@ -486,13 +494,13 @@ export default function Home() {
         <SidebarContent className="px-3">
           <NavGroup
             title="CLINICAL WORKSPACE"
-            items={visibleModules.filter((item) => modules.slice(0, 5).includes(item))}
+            items={visibleModules.filter((item) => modules.slice(0, 6).includes(item))}
             active={active}
             setActive={setActive}
           />
           <NavGroup
             title="ACADEMIC WORKSPACE"
-            items={visibleModules.filter((item) => modules.slice(5).includes(item))}
+            items={visibleModules.filter((item) => modules.slice(6).includes(item))}
             active={active}
             setActive={setActive}
           />
@@ -555,7 +563,7 @@ export default function Home() {
         <main className="workspace">
           {active === "Dashboard" ? (
             <Dashboard
-              records={records}
+              records={opdRecords}
               loading={loading}
               openForm={() => {
                 setEditing(null);
@@ -569,7 +577,29 @@ export default function Home() {
             <>
               <ReportBar module="opd" />
               <OpdPage
-                records={filtered}
+                records={filtered.filter((p) => !isEmergency(p))}
+                query={query}
+                setQuery={setQuery}
+                loading={loading}
+                openForm={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+                edit={(p) => {
+                  setEditing(p);
+                  setFormOpen(true);
+                }}
+                remove={setDeleting}
+                admit={admit}
+                showTimeline={showTimeline}
+              />
+            </>
+          ) : active === "Emergency OPD" ? (
+            <>
+              <ReportBar module="emergency" />
+              <OpdPage
+                records={filtered.filter(isEmergency)}
+                title="Emergency OPD"
                 query={query}
                 setQuery={setQuery}
                 loading={loading}
@@ -614,6 +644,7 @@ export default function Home() {
           patient={editing}
           saving={saving}
           onSubmit={savePatient}
+          kind={(editing ? editing.visitType === "EMERGENCY" : active === "Emergency OPD") ? "Emergency OPD" : "OPD"}
         />
         <TimelineDialog
           patient={timelinePatient}
@@ -1039,6 +1070,7 @@ function Dashboard({
 }
 
 function OpdPage({
+  title = "OPD Patients",
   records,
   query,
   setQuery,
@@ -1049,6 +1081,7 @@ function OpdPage({
   admit,
   showTimeline,
 }: {
+  title?: string;
   records: Patient[];
   query: string;
   setQuery: (s: string) => void;
@@ -1063,13 +1096,13 @@ function OpdPage({
     <>
       <section className="welcome-row">
         <div>
-          <h1 className="section-title">OPD Patients</h1>
+          <h1 className="section-title">{title}</h1>
           <p>
             Register, search and admit patients without duplicate data entry.
           </p>
         </div>
         <Button className="new-patient" onClick={openForm}>
-          <Plus /> Register OPD Patient
+          <Plus /> {title === "Emergency OPD" ? "Register Emergency Patient" : "Register OPD Patient"}
         </Button>
       </section>
       <section className="search-wrap">
@@ -1091,7 +1124,7 @@ function OpdPage({
           <table className="opd-table opd-patients-table">
             <thead>
               <tr>
-                <th className="col-patient">Patient</th>
+                <th className="col-patient">Patient Name</th>
                 <th className="col-opdno">OPD No./UHID No.</th>
                 <th className="col-agesex">Age/Sex</th>
                 <th className="col-diagnosis">Diagnosis</th>
@@ -1178,6 +1211,7 @@ function OpdPage({
 }
 
 function PatientDialog({
+  kind = "OPD",
   open,
   setOpen,
   patient,
@@ -1187,6 +1221,7 @@ function PatientDialog({
   open: boolean;
   setOpen: (o: boolean) => void;
   patient: Patient | null;
+  kind?: string;
   saving: boolean;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -1195,7 +1230,7 @@ function PatientDialog({
       <DialogContent className="sm:max-w-[620px]">
         <DialogHeader>
           <DialogTitle>
-            {patient ? "Edit OPD patient" : "Register OPD patient"}
+            {patient ? `Edit ${kind} patient` : `Register ${kind} patient`}
           </DialogTitle>
           <DialogDescription>
             {patient
@@ -1418,7 +1453,7 @@ function ReportBar({ module }: { module: string }) {
   return (
     <div className="report-bar">
       <span>
-        <FileText /> Monthly {module.toUpperCase()} report archive
+        <FileText /> Monthly {module === "emergency" ? "Emergency OPD" : module.toUpperCase()} report archive
       </span>
       <div className="report-controls">
         <label>

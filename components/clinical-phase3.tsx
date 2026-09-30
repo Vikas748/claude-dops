@@ -33,6 +33,7 @@ type Ipd = {
   patientId: number;
   patientCode: string;
   opdNumber?: string | null;
+  caseCategory?: string | null;
   name: string;
   age: number;
   sex: string;
@@ -43,6 +44,9 @@ type Ipd = {
   ayushmanCode: string;
   status: string;
 };
+/** How a patient can leave the ward. */
+const WARD_EXIT = ["DISCHARGED", "LAMA", "DOR", "DAMA"];
+
 type Ward = {
   wardId: number;
   ipdId: number;
@@ -56,6 +60,9 @@ type Ward = {
   pacStatus: string;
   admittedAt: string;
   dischargedAt: string | null;
+  dischargeStatus?: string | null;
+  caseCategory?: string | null;
+  opdNumber?: string | null;
 };
 type Ot = {
   id: number;
@@ -165,7 +172,7 @@ export function ClinicalPhase3({
         const r = await fetch("/api/clinical", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ action: "discharge", wardId, notes: fd.get("notes") ?? "", uploadId }),
+            body: JSON.stringify({ action: "discharge", wardId, notes: fd.get("notes") ?? "", status: fd.get("status") ?? "DISCHARGED", uploadId }),
           }),
           j = await r.json();
         if (!r.ok) throw new Error(j.message);
@@ -192,11 +199,12 @@ export function ClinicalPhase3({
   const ipd = data.ipd.filter((x) =>
     `${x.name} ${x.patientCode} ${x.opdNumber ?? ""} ${x.diagnosis} ${x.admissionDate} ${formatDate(x.admissionDate)}`.toLowerCase().includes(q),
   );
-  const wards = data.ward.filter(
-    (x) =>
-      !x.dischargedAt &&
-      `${x.name} ${x.patientCode} ${x.diagnosis} ${x.wardName} ${x.bedNumber} ${formatDate(x.admittedAt)}`.toLowerCase().includes(q),
-  );
+  // Discharged patients stay in the Ward list (with how they left); active ones first.
+  const wards = data.ward
+    .filter((x) =>
+      `${x.name} ${x.patientCode} ${x.opdNumber ?? ""} ${x.diagnosis} ${x.wardName} ${x.bedNumber} ${formatDate(x.admittedAt)} ${x.dischargeStatus ?? ""} ${x.caseCategory ?? ""}`.toLowerCase().includes(q),
+    )
+    .sort((a, b) => Number(Boolean(a.dischargedAt)) - Number(Boolean(b.dischargedAt)));
   return (
     <>
       <div className="module-heading">
@@ -212,7 +220,7 @@ export function ClinicalPhase3({
         </div>
         <div className="module-count">
           {module === "IPD"
-            ? ipd.filter((x) => x.status !== "DISCHARGED").length
+            ? ipd.length
             : module === "Ward"
               ? wards.length
               : data.ot.length}
@@ -230,11 +238,12 @@ export function ClinicalPhase3({
       {module === "IPD" && (
         <ClinicalTable
           headers={[
-            "Patient",
+            "Patient Name",
             "OPD No./UHID No.",
             "Diagnosis",
             "Admission",
             "Management / Ayushman",
+            "CASE CATEGORY",
             "Status",
             "Actions",
           ]}
@@ -256,7 +265,20 @@ export function ClinicalPhase3({
                 </small>
               </td>
               <td>
-                <Badge value={p.status} />
+                <select
+                  className={`case-select ${(p.caseCategory ?? "").toLowerCase()}`}
+                  aria-label={`Case category for ${p.name}`}
+                  value={p.caseCategory ?? ""}
+                  onChange={(e) => action({ action: "case_category", id: p.id, category: e.target.value })}
+                >
+                  <option value="">Select</option>
+                  <option value="MLC">MLC</option>
+                  <option value="NON-MLC">NON-MLC</option>
+                </select>
+              </td>
+              <td>
+                {/* A patient is never discharged from IPD itself: that happens in Ward. */}
+                <Badge value="ADMITTED" />
               </td>
               <td>
                 <div className="row-actions">
@@ -292,11 +314,13 @@ export function ClinicalPhase3({
       {module === "Ward" && (
         <ClinicalTable
           headers={[
-            "Patient",
+            "Patient Name",
             "Ward / Bed",
             "Diagnosis",
+            "CASE CATEGORY",
             "PAC fitness",
             "Admitted",
+            "STATUS",
             "Actions",
           ]}
           loading={loading}
@@ -310,10 +334,12 @@ export function ClinicalPhase3({
                 <small>Bed {w.bedNumber}</small>
               </td>
               <td>{w.diagnosis}</td>
+              <td>{w.caseCategory ? <span className={`case-badge ${w.caseCategory.toLowerCase()}`}>{w.caseCategory}</span> : "—"}</td>
               <td>
                 <select
                   className={`pac-select ${w.pacStatus.toLowerCase()}`}
                   value={w.pacStatus}
+                  disabled={Boolean(w.dischargedAt)}
                   onChange={(e) =>
                     action({
                       action: "pac",
@@ -329,7 +355,23 @@ export function ClinicalPhase3({
               </td>
               <td>{formatDate(w.admittedAt)}</td>
               <td>
+                {w.dischargedAt ? (
+                  <select
+                    className="exit-select"
+                    aria-label={`Status for ${w.name}`}
+                    value={w.dischargeStatus ?? "DISCHARGED"}
+                    onChange={(e) => action({ action: "ward_status", wardId: w.wardId, status: e.target.value })}
+                  >
+                    {WARD_EXIT.map((x) => <option key={x}>{x}</option>)}
+                  </select>
+                ) : (
+                  <Badge value="IN_WARD" />
+                )}
+                {w.dischargedAt && <small className="exit-date">{formatDate(w.dischargedAt)}</small>}
+              </td>
+              <td>
                 <div className="row-actions">
+                  {!w.dischargedAt && <>
                   <Button
                     variant="outline"
                     size="sm"
@@ -340,6 +382,7 @@ export function ClinicalPhase3({
                   <Button size="sm" onClick={() => open("discharge", w)}>
                     <FileUp /> Discharge
                   </Button>
+                  </>}
                   <Button
                     variant="outline"
                     size="sm"
@@ -546,7 +589,7 @@ function OtView({
           <ClinicalTable
             headers={[
               "Time / Date",
-              "Patient",
+              "Patient Name",
               "Procedure",
               "Surgeon",
               "PAC",
@@ -789,6 +832,12 @@ function ActionDialog({
               <label>
                 Discharge notes
                 <textarea name="notes" required />
+              </label>
+              <label>
+                STATUS
+                <select name="status" defaultValue="DISCHARGED" required>
+                  {WARD_EXIT.map((x) => <option key={x}>{x}</option>)}
+                </select>
               </label>
               <label>
                 Discharge card (PDF, JPG or PNG — max 10 MB)
