@@ -911,6 +911,7 @@ function Dashboard({
     ipd: 0,
     ward: 0,
     ot: 0,
+    discharged: 0,
   });
   const [dashboardQuery, setDashboardQuery] = useState("");
   useEffect(() => {
@@ -919,7 +920,7 @@ function Dashboard({
         r.ok
           ? (r.json() as Promise<{
               data: {
-                ipd: Array<{ status: string }>;
+                ipd: Array<{ status: string; admissionDate: string }>;
                 ward: Array<{ dischargedAt: string | null }>;
                 ot: Array<{ scheduledDate: string }>;
               };
@@ -929,7 +930,9 @@ function Dashboard({
       .then((j) => {
         if (!j?.data) return;
         setClinicalCounts({
-          ipd: j.data.ipd.filter((x) => x.status !== "DISCHARGED").length,
+          // Admitted to IPD today, and left the ward today (any STATUS)
+          ipd: j.data.ipd.filter((x) => x.admissionDate === today).length,
+          discharged: j.data.ward.filter((x) => x.dischargedAt && localDate(0, new Date(x.dischargedAt)) === today).length,
           ward: j.data.ward.filter((x) => !x.dischargedAt).length,
           ot: j.data.ot.filter((x) => x.scheduledDate === today).length,
         });
@@ -953,9 +956,9 @@ function Dashboard({
       color: "cyan",
     },
     {
-      label: "Active IPD",
+      label: "Today's IPD",
       value: clinicalCounts.ipd,
-      note: "Current admissions",
+      note: "Admitted today",
       icon: Ambulance,
       color: "amber",
     },
@@ -972,6 +975,13 @@ function Dashboard({
       note: "Scheduled today",
       icon: Theater,
       color: "violet",
+    },
+    {
+      label: "Today Discharged",
+      value: clinicalCounts.discharged,
+      note: "Left the ward today",
+      icon: LogOut,
+      color: "rose",
     },
   ];
   return (

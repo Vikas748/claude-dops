@@ -65,6 +65,75 @@ const fields: { [k: string]: string[] } = {
   ],
   HELPLINE: ["Patient ID", "Diagnosis", "Mobile", "Address", "Ward / Bed", "Description", "Resolved At"],
 };
+const AGE_SEX = "Age/Sex";
+const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEPT", "OCT", "NOV", "DEC"];
+/** "2026-10" -> "OCT 2026" */
+const monthLabel = (value: string) => `${MONTHS[Number(value.slice(5, 7)) - 1] ?? ""} ${value.slice(0, 4)}`;
+/** Last 36 months up to next month, always including the selected one. */
+function monthOptions(selected: string) {
+  const now = new Date(), out: string[] = [];
+  for (let i = -1; i < 36; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  if (!out.includes(selected)) out.push(selected);
+  return out.sort().reverse();
+}
+/** "34 / F", like the OPD table. */
+const ageSex = (p: Record<string, unknown>) => {
+  const age = String(p.Age ?? "").trim(), sex = String(p.Sex ?? "").trim();
+  return age || sex ? `${age || "—"} / ${sex ? sex[0].toUpperCase() : "—"}` : "—";
+};
+
+/** One Excel-style editable cell of the Skin Bank register. */
+function InlineCell({ row, field, type = "text", editing, start, stop, save, strong }: {
+  row: R; field: string; type?: string; editing: boolean; start: () => void; stop: () => void;
+  save: (row: R, field: string, value: string | { age: string; sex: string }) => Promise<boolean | void>; strong?: boolean;
+}) {
+  const current = field === "recordDate" ? row.recordDate : field === "primaryName" ? row.primaryName : String(row.payload[field] ?? "");
+  const [value, setValue] = useState(current);
+  const [age, setAge] = useState(String(row.payload.Age ?? ""));
+  const [sex, setSex] = useState(String(row.payload.Sex ?? ""));
+  const [busy, setBusy] = useState(false);
+  async function commit() {
+    if (busy) return;
+    const changed = field === AGE_SEX ? age !== String(row.payload.Age ?? "") || sex !== String(row.payload.Sex ?? "") : value !== current;
+    if (!changed) return stop();
+    setBusy(true);
+    const ok = await save(row, field, field === AGE_SEX ? { age, sex } : value);
+    setBusy(false);
+    if (ok !== false) stop();
+  }
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === "Enter") { e.preventDefault(); void commit(); }
+    if (e.key === "Escape") { setValue(current); setAge(String(row.payload.Age ?? "")); setSex(String(row.payload.Sex ?? "")); stop(); }
+  }
+  if (!editing) {
+    const shown = field === "recordDate" ? formatDate(row.recordDate) : field === AGE_SEX ? ageSex(row.payload) : displayCell(current);
+    return (
+      <td className="cell-editable" tabIndex={0} role="button" aria-label={`Edit ${field === "primaryName" ? "name" : field === "recordDate" ? "date" : field} of ${row.primaryName}`}
+        onClick={() => { setValue(current); setAge(String(row.payload.Age ?? "")); setSex(String(row.payload.Sex ?? "")); start(); }}
+        onKeyDown={(e) => { if (e.key === "Enter") start(); }}>
+        {strong ? <strong>{shown}</strong> : shown}
+      </td>
+    );
+  }
+  return (
+    <td className="cell-editing">
+      {field === AGE_SEX ? (
+        <div className="cell-agesex" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) void commit(); }}>
+          <input autoFocus inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value)} onKeyDown={onKey} aria-label="Age" disabled={busy} />
+          <select value={sex} onChange={(e) => setSex(e.target.value)} onKeyDown={onKey} aria-label="Sex" disabled={busy}>
+            <option value="">—</option><option>Male</option><option>Female</option><option>Other</option>
+          </select>
+        </div>
+      ) : (
+        <input autoFocus type={type} value={value} onChange={(e) => setValue(e.target.value)} onBlur={() => void commit()} onKeyDown={onKey} disabled={busy} aria-label={field} />
+      )}
+    </td>
+  );
+}
+
 /** Register cell: dates shown as DD-MM-YYYY, empty as a dash. */
 function displayCell(value: unknown) {
   const text = String(value ?? "");
@@ -92,6 +161,7 @@ export function SpecialModule({
     [q, setQ] = useState(""),
     [statusFilter, setStatusFilter] = useState("ALL"),
     [month, setMonth] = useState(localDate().slice(0, 7)),
+    [cellKey, setCellKey] = useState(""),
     [open, setOpen] = useState(false),
     [edit, setEdit] = useState<R | null>(null),
     [saving, setSaving] = useState(false),
@@ -115,6 +185,33 @@ export function SpecialModule({
   const totalFields = [...fields[kind], ...customColumns.map((column) => column.name)];
   // Skin Bank follows the official proforma, which has no status column.
   const isSkin = kind === "SKIN_RECIPIENT" || kind === "SKIN_DONOR";
+  // Age and Sex are shown as one "Age/Sex" column, like OPD (the form keeps both fields).
+  const tableFields = totalFields.includes("Age") && totalFields.includes("Sex")
+    ? totalFields.filter((x) => x !== "Sex").map((x) => (x === "Age" ? AGE_SEX : x))
+    : totalFields;
+
+  // Excel-style editing (Skin Bank): tap a cell, type, press Enter or tap elsewhere to save.
+  async function saveInline(row: R, field: string, value: string | { age: string; sex: string }) {
+    const payload: Record<string, unknown> = { ...row.payload };
+    let recordDate = row.recordDate, primaryName = row.primaryName;
+    if (field === "recordDate") recordDate = String(value);
+    else if (field === "primaryName") primaryName = String(value).trim();
+    else if (field === AGE_SEX && typeof value === "object") { payload.Age = value.age; payload.Sex = value.sex; }
+    else payload[field] = String(value);
+    if (!primaryName || !recordDate) return notify("Name and date cannot be empty.");
+    const r = await fetch("/api/special", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: row.id, kind, patientId: row.patientId ?? null, recordDate, primaryName, status: row.status, payload }),
+      }),
+      j = await r.json();
+    if (!r.ok) {
+      notify(j.message ?? "Could not save the change.");
+      return false;
+    }
+    await load();
+    return true;
+  }
   const visibleRows = kind === "HELPLINE" && statusFilter !== "ALL" ? rows.filter((row) => row.status === statusFilter) : rows;
   const load = async () => {
     const r = await fetch(
@@ -240,13 +337,16 @@ export function SpecialModule({
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search register…"
         />
-        <Input
+        <select
           className="register-month"
-          type="month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
           aria-label="Report month"
-        />
+        >
+          {monthOptions(month).map((m) => (
+            <option key={m} value={m}>{monthLabel(m)}</option>
+          ))}
+        </select>
         {kind === "HELPLINE" && <select className="register-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="CM Helpline status"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="RESOLVED">Resolved</option></select>}
       </section>
       {kind === "HELPLINE" && (
@@ -281,7 +381,7 @@ export function SpecialModule({
                 <th>S No</th>
                 <th>Date</th>
                 <th>Name</th>
-                {totalFields.map((x) => (
+                {tableFields.map((x) => (
                   <th key={x}>{x}</th>
                 ))}
                 {!isSkin && <th>Status</th>}
@@ -292,13 +392,21 @@ export function SpecialModule({
               {visibleRows.map((r, i) => (
                 <tr key={r.id}>
                   <td>{i + 1}</td>
+                  {isSkin ? <>
+                    <InlineCell row={r} field="recordDate" type="date" editing={cellKey === `${r.id}:recordDate`} start={() => setCellKey(`${r.id}:recordDate`)} stop={() => setCellKey("")} save={saveInline} />
+                    <InlineCell row={r} field="primaryName" editing={cellKey === `${r.id}:primaryName`} start={() => setCellKey(`${r.id}:primaryName`)} stop={() => setCellKey("")} save={saveInline} strong />
+                    {tableFields.map((x) => (
+                      <InlineCell key={x} row={r} field={x} editing={cellKey === `${r.id}:${x}`} start={() => setCellKey(`${r.id}:${x}`)} stop={() => setCellKey("")} save={saveInline} />
+                    ))}
+                  </> : <>
                   <td>{formatDate(r.recordDate)}</td>
                   <td>
                     <strong>{r.primaryName}</strong>
                   </td>
-                  {totalFields.map((x) => (
-                    <td key={x}>{displayCell(r.payload[x])}</td>
+                  {tableFields.map((x) => (
+                    <td key={x}>{x === AGE_SEX ? ageSex(r.payload) : displayCell(r.payload[x])}</td>
                   ))}
+                  </>}
                   {!isSkin && (
                     <td>
                       <span className="clinical-badge active">{r.status}</span>
@@ -459,7 +567,7 @@ export function SpecialModule({
         </DialogContent>
       </Dialog>
       <Dialog open={history !== null} onOpenChange={(value) => !value && setHistory(null)}>
-        <DialogContent><DialogHeader><DialogTitle>Row version history</DialogTitle><DialogDescription>Previous values captured before every edit or delete.</DialogDescription></DialogHeader><div className="version-list">{history?.map((version) => <article key={version.id}><strong>{new Date(version.createdAt).toLocaleString("en-IN")}</strong><span>{version.primaryName} · {version.status}</span><small>{version.changedBy}</small><pre>{JSON.stringify(version.payload, null, 2)}</pre></article>)}{history?.length === 0 && <p>No earlier versions yet.</p>}</div></DialogContent>
+        <DialogContent><DialogHeader><DialogTitle>Row version history</DialogTitle><DialogDescription>Previous values captured before every edit or delete.</DialogDescription></DialogHeader><div className="version-list">{history?.map((version) => <article key={version.id}><strong>{formatDateTime(version.createdAt)}</strong><span>{version.primaryName} · {version.status}</span><small>{version.changedBy}</small><pre>{JSON.stringify(version.payload, null, 2)}</pre></article>)}{history?.length === 0 && <p>No earlier versions yet.</p>}</div></DialogContent>
       </Dialog>
     </>
   );

@@ -2140,3 +2140,30 @@ body {
 .opd-patients-table td:nth-child(2), .opd-patients-table td:nth-child(5), .opd-patients-table td:nth-child(7), .opd-patients-table td:last-child, .opd-patients-table th { white-space: nowrap; }
 .opd-patients-table .row-actions { flex-wrap: nowrap; }
 .nav-box .nav-box-label { font-size: 13px !important; letter-spacing: 0.06em; white-space: nowrap; }
+
+/* ===== Polishing round ===== */
+/* Dashboard: five cards (5th = Today Discharged, soft rose) */
+.stats-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.stats-grid .stat-card:nth-child(5) { background: #fcdde3; }
+.stat-icon.rose { background: #ffe9ee; color: #b4234a; }
+@media (max-width: 1280px) { .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* IPD CASE CATEGORY dropdown and its badge in Ward */
+.case-select, .exit-select { height: 32px; border: 1px solid #e2d6c2; border-radius: 8px; padding: 0 8px; background: #fff; font: inherit; font-size: 12.5px; font-weight: 700; color: #1d1a16; }
+.case-select.mlc, .case-badge.mlc { background: #fde2e2; color: #9b1c1c; border-color: #f5b5b5; }
+.case-select.non-mlc, .case-badge.non-mlc { background: #e3f4ea; color: #1f6b43; border-color: #b9e2c9; }
+.case-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; border: 1px solid; font-size: 11.5px; font-weight: 800; letter-spacing: 0.03em; }
+/* Ward STATUS after the patient has left */
+.exit-select { background: #f6eddc; }
+.exit-date { display: block; margin-top: 4px; color: #8a7f6d; font-size: 11.5px; }
+/* Skin Bank: Excel-style cells (tap to edit; orange border while editing) */
+.cell-editable { cursor: text; }
+.cell-editable:hover { background: #fdf6e7; box-shadow: inset 0 0 0 1px #ecd9b4; }
+.cell-editing { padding: 3px 4px !important; }
+.cell-editing input, .cell-editing select { width: 100%; min-width: 90px; height: 32px; padding: 0 8px; border: 2px solid #e0902c; border-radius: 6px; font: inherit; background: #fff; outline: none; }
+.cell-agesex { display: flex; gap: 4px; }
+.cell-agesex input { width: 58px; min-width: 58px; }
+.cell-agesex select { min-width: 84px; }
+/* Month picker: "OCT 2026" never cut off */
+select.register-month { min-width: 140px; height: 42px; padding: 0 12px; border: 1px solid #e2d6c2; border-radius: 10px; background: #fff; font: inherit; font-weight: 700; letter-spacing: 0.04em; }
