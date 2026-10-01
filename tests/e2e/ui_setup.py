@@ -5,5 +5,5 @@ call("POST","/api/patients",{"name":"Ramesh Kumar","age":35,"sex":"Male","mobile
 _,pl,_=call("GET","/api/patients?q=Ramesh",cookie=admin); call("POST",f"/api/opd/{pl['data'][0]['opdId']}/admit",{},cookie=admin)
 _,cl,_=call("GET","/api/clinical",cookie=admin); ipd=cl["data"]["ipd"][0]["id"]
 call("POST","/api/clinical",{"action":"move_ward","id":ipd,"wardName":"Burns A","bedNumber":"12"},cookie=admin)
-print(call("POST","/api/clinical",{"action":"schedule_ot","id":ipd,"scheduledDate":time.strftime("%Y-%m-%d"),"scheduledTime":"10:00","procedureName":"Contracture release + SSG","surgeonName":"Dr Mehta"},cookie=admin)[:2])
+print(call("POST","/api/clinical",{"action":"schedule_ot","id":ipd,"scheduledDate":__import__("datetime").datetime.utcfromtimestamp(time.time()+19800).strftime("%Y-%m-%d"),"scheduledTime":"10:00","procedureName":"Contracture release + SSG","surgeonName":"Dr Mehta"},cookie=admin)[:2])
 print("ready ipd",ipd)

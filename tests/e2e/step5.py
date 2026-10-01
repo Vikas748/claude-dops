@@ -21,7 +21,7 @@ fresh(); call("POST","/api/auth/request-otp",{"email":"head.dept@hospital.in"});
 c,d,_=call("POST","/api/auth/verify-otp",{"email":"head.dept@hospital.in","code":code,"client":"MOBILE"}); c2,_,_=call("GET","/api/access",bearer=d["token"])
 ok(c2==200, "L10 mobile-app tokens are not affected by the web app lock")
 admin=full
-call("POST","/api/special",{"kind":"SKIN_RECIPIENT","recordDate":time.strftime("%Y-%m-%d"),"primaryName":"Wide Table Patient","payload":{"CR No.":"1234567","UHID":"99887766","Age":"40","Sex":"Male","Address":"Jabalpur, Madhya Pradesh","Mobile No.":"9876500011","Indication for Transplant":"Post-burn raw area over both lower limbs","Size of Graft Transplanted":"400 sq cm"}},cookie=admin)
+call("POST","/api/special",{"kind":"SKIN_RECIPIENT","recordDate":__import__("datetime").datetime.utcfromtimestamp(time.time()+19800).strftime("%Y-%m-%d"),"primaryName":"Wide Table Patient","payload":{"CR No.":"1234567","UHID":"99887766","Age":"40","Sex":"Male","Address":"Jabalpur, Madhya Pradesh","Mobile No.":"9876500011","Indication for Transplant":"Post-burn raw area over both lower limbs","Size of Graft Transplanted":"400 sq cm"}},cookie=admin)
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)
     ctx=b.new_context(viewport={"width":1280,"height":800}); pg=ctx.new_page()
