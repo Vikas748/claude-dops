@@ -381,3 +381,24 @@ test("round 3: OPD No./UHID No. required and unique; DD-MM-YYYY; headings withou
   assert.doesNotMatch(read("app/page.tsx"), /Patient ID continuity|<h2>Production readiness<\/h2>/);
   assert.match(read("components/special-module.tsx"), /\{!isSkin && <th>Status<\/th>\}/);
 });
+
+test("polishing round: emergency OPD, ward exit status, case category, today in India time", () => {
+  const clinical = read("app/api/clinical/route.ts");
+  const ui = read("components/clinical-phase3.tsx");
+  const page = read("app/page.tsx");
+  const special = read("components/special-module.tsx");
+  assert.match(read("supabase/migrations/008_polish_round.sql"), /case_category in \('MLC', 'NON-MLC'\)/);
+  assert.match(clinical, /const WARD_EXIT = \["DISCHARGED", "LAMA", "DOR", "DAMA"\]/);
+  assert.match(clinical, /action === "case_category"/);
+  assert.match(clinical, /action === "ward_status"/);
+  assert.match(ui, /<Badge value="ADMITTED" \/>/); // IPD never shows discharged
+  assert.doesNotMatch(ui, /!x\.dischargedAt &&\s*`/); // ward keeps discharged rows
+  assert.match(page, /\{ label: "Emergency OPD", icon: Siren \}/);
+  assert.match(page, /label: "Today's IPD"/);
+  assert.match(page, /label: "Today Discharged"/);
+  assert.match(read("app/api/patients/route.ts"), /o\.visit_type = \?/);
+  assert.match(special, /const AGE_SEX = "Age\/Sex"/);
+  assert.match(special, /"SEPT"/);
+  assert.match(special, /function InlineCell/);
+  for (const f of ["app/page.tsx", "components/clinical-phase3.tsx", "components/special-module.tsx"]) assert.doesNotMatch(read(f), /localDate\(/); // "today" = India date
+});

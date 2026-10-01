@@ -2167,3 +2167,5 @@ body {
 .cell-agesex select { min-width: 84px; }
 /* Month picker: "OCT 2026" never cut off */
 select.register-month { min-width: 140px; height: 42px; padding: 0 12px; border: 1px solid #e2d6c2; border-radius: 10px; background: #fff; font: inherit; font-weight: 700; letter-spacing: 0.04em; }
+/* Keep short values on one line in the clinical tables */
+.case-badge, .clinical-badge, .exit-select, .pac-select, .case-select, td.nowrap { white-space: nowrap; }

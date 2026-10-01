@@ -255,7 +255,7 @@ export function ClinicalPhase3({
               <PatientCell p={p} />
               <td>{p.opdNumber || "—"}</td>
               <td>{p.diagnosis}</td>
-              <td>{formatDate(p.admissionDate)}</td>
+              <td className="nowrap">{formatDate(p.admissionDate)}</td>
               <td>
                 <strong>{p.planManagement || "Not added"}</strong>
                 <small>
@@ -353,7 +353,7 @@ export function ClinicalPhase3({
                   <option>UNFIT</option>
                 </select>
               </td>
-              <td>{formatDate(w.admittedAt)}</td>
+              <td className="nowrap">{formatDate(w.admittedAt)}</td>
               <td>
                 {w.dischargedAt ? (
                   <select

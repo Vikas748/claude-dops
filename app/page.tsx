@@ -548,13 +548,14 @@ export default function Home() {
             </Button>
             <div className="date">
               <span>
-                {new Date().toLocaleDateString("en-IN", { weekday: "long" })}
+                {new Date().toLocaleDateString("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" })}
               </span>
               <strong>
                 {new Date().toLocaleDateString("en-IN", {
                   day: "2-digit",
                   month: "short",
                   year: "numeric",
+                  timeZone: "Asia/Kolkata",
                 })}
               </strong>
             </div>

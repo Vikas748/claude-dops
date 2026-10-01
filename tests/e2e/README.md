@@ -19,6 +19,7 @@ Requirements: Linux, PostgreSQL 14+ running locally, `pnpm`, `openssl`, Python 3
 | `enc` | Aadhaar/bank encryption, masking, masked edits, history permission |
 | `audit2` | Audit detail, append-only audit log across restores |
 | `ui`, `ui2`, `sess`, `ui_up`, `greet` | Browser: sign-in on desktop/mobile, session expiry, uploads, backup/restore screens, greeting |
+| `step7` | Polishing round: Emergency OPD, IPD always ADMITTED, CASE CATEGORY, Ward keeps discharged rows with STATUS, dashboard 5 cards, Age/Sex, month labels, Skin Bank inline editing |
 | `step6` | Round 3: OPD No./UHID No. (required, unique, searchable, OPD/IPD/report columns), DD-MM-YYYY, headings, sidebar boxes, dashboard, gap, Skin Bank tabs/status |
 | `step5` | Round 2: app lock (PIN on every open, mandatory PIN, server-enforced 423), black/gold theme, capital sidebar, header weights, no formula box, tablet overflow |
 | `step4` | Device-bound PIN: setup after email code, PIN sign-in, lockout (also under parallel guessing), deactivation, remove from device |
