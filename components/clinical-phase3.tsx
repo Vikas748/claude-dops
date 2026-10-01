@@ -314,16 +314,12 @@ export function ClinicalPhase3({
             </TabsList>
           </Tabs>
           <ClinicalTable
-            headers={[
-              "Patient Name",
-              "Ward / Bed",
-              "Diagnosis",
-              "CASE CATEGORY",
-              "PAC fitness",
-              "Admitted",
-              wardTab === "ADMIT" ? "Schedule OT" : "STATUS",
-              "Actions",
-            ]}
+            headers={
+              wardTab === "ADMIT"
+                ? ["Patient Name", "Ward / Bed", "Diagnosis", "CASE CATEGORY", "PAC fitness", "Admitted", "Schedule OT", "Actions"]
+                : // Discharged patients: no PAC fitness, no actions (CM Helpline is raised while in the ward)
+                  ["Patient Name", "Ward / Bed", "Diagnosis", "CASE CATEGORY", "Admitted", "STATUS"]
+            }
             loading={loading}
             empty={!(wardTab === "ADMIT" ? inWard : leftWard).length}
           >
@@ -336,10 +332,8 @@ export function ClinicalPhase3({
                 </td>
                 <td>{w.diagnosis}</td>
                 <td>{w.caseCategory ? <span className={`case-badge ${w.caseCategory.toLowerCase()}`}>{w.caseCategory}</span> : "—"}</td>
+                {!w.dischargedAt && (
                 <td>
-                  {w.dischargedAt ? (
-                    <Badge value={w.pacStatus} />
-                  ) : (
                     <select
                       className={`pac-select ${w.pacStatus.toLowerCase()}`}
                       aria-label={`PAC fitness for ${w.name}`}
@@ -352,8 +346,8 @@ export function ClinicalPhase3({
                       <option>FIT</option>
                       <option>UNFIT</option>
                     </select>
-                  )}
                 </td>
+                )}
                 <td className="nowrap">{formatDate(w.admittedAt)}</td>
                 <td>
                   {w.dischargedAt ? (
@@ -374,18 +368,18 @@ export function ClinicalPhase3({
                     </Button>
                   )}
                 </td>
-                <td>
-                  <div className="row-actions">
-                    {!w.dischargedAt && (
+                {!w.dischargedAt && (
+                  <td>
+                    <div className="row-actions">
                       <Button size="sm" onClick={() => open("discharge", w)}>
                         <FileUp /> Discharge
                       </Button>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => addToHelpline(w)}>
-                      <Stethoscope /> CM Helpline
-                    </Button>
-                  </div>
-                </td>
+                      <Button variant="outline" size="sm" onClick={() => addToHelpline(w)}>
+                        <Stethoscope /> CM Helpline
+                      </Button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </ClinicalTable>

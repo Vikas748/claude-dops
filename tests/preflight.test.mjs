@@ -407,7 +407,7 @@ test("ward/OT round: ward tabs, Schedule OT column, OT date first, no Postpone",
   const ui = read("components/clinical-phase3.tsx");
   assert.match(ui, /ADMIT PATIENT \(\{inWard\.length\}\)/);
   assert.match(ui, /DISCHARGED PATIENT \(\{leftWard\.length\}\)/);
-  assert.match(ui, /wardTab === "ADMIT" \? "Schedule OT" : "STATUS"/);
+  assert.match(ui, /\["Patient Name", "Ward \/ Bed", "Diagnosis", "CASE CATEGORY", "Admitted", "STATUS"\]/); // discharged tab: no PAC, no actions
   assert.match(ui, /"Date \/ Time"/);
   assert.doesNotMatch(ui, /Postpone/);
   assert.match(ui, /`PAC updated: \$\{e\.target\.value\}`/);
