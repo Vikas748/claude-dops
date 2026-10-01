@@ -53,7 +53,7 @@ with sync_playwright() as p:
     ok(loaded>=1, f"UI4 real PNG renders in the gallery via signed redirect (loaded images: {loaded}; the 6 MB test 'photo' is random bytes, so it cannot render)")
     pg.screenshot(path="/tmp/shots/u-2-ot.png"); pg.keyboard.press("Escape"); time.sleep(0.5)
     # --- Discharge ---
-    nav(pg,"Ward"); pg.wait_for_selector("text=Ramesh Kumar"); pg.click("button:has-text('Discharge')")
+    nav(pg,"Ward"); pg.wait_for_selector("text=Ramesh Kumar"); pg.locator("tr", has_text="Ramesh Kumar").locator("button:has-text('Discharge')").click()
     pg.fill("textarea[name=notes]","Stable. Dressing on day 5."); pg.set_input_files("input[name=card]",F+"card.png"); pg.screenshot(path="/tmp/shots/u-3-discharge.png")
     pg.click("button:has-text('Confirm discharge')"); pg.wait_for_function("!document.querySelector('textarea[name=notes]')",timeout=15000); time.sleep(0.5)
     ok(sql("select card_name from discharge_records")=="card.png", "UI5 Ward: discharged with card uploaded from the form")
