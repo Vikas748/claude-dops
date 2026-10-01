@@ -13,7 +13,6 @@ import {
   ImagePlus,
   Search,
   Stethoscope,
-  Theater,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -298,14 +297,6 @@ export function ClinicalPhase3({
                   >
                     <BedDouble />{" "}
                     {p.status === "ADMITTED" ? "Move to Ward" : "In Ward"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={p.status === "DISCHARGED"}
-                    onClick={() => open("ot", p)}
-                  >
-                    <Theater /> Schedule OT
                   </Button>
                 </div>
               </td>

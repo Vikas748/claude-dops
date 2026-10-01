@@ -24,6 +24,7 @@ with sync_playwright() as p:
     if "Set your PIN" in pg.inner_text("body"):
         pg.locator("#pin-new").focus(); pg.keyboard.type("2580"); pg.locator("#pin-confirm").focus(); pg.keyboard.type("2580"); pg.click("button:has-text('Save PIN')")
     pg.wait_for_url("http://localhost:3100/",timeout=15000); time.sleep(1.5)
+    nav(pg,"IPD"); ok(pg.locator("table button:has-text('Schedule OT')").count()==0 and pg.locator("table button:has-text('Plan')").count()>=1, "I1 IPD has no Schedule OT button")
     nav(pg,"Ward")
     tabs=pg.evaluate("[...document.querySelectorAll('.ward-tab')].map(t=>[t.innerText.trim(), t.dataset.state])")
     ok(tabs==[["ADMIT PATIENT (1)","active"],["DISCHARGED PATIENT (1)","inactive"]], f"T1 Ward tabs with counts, ADMIT PATIENT first {tabs}")

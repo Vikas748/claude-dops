@@ -412,3 +412,9 @@ test("ward/OT round: ward tabs, Schedule OT column, OT date first, no Postpone",
   assert.doesNotMatch(ui, /Postpone/);
   assert.match(ui, /`PAC updated: \$\{e\.target\.value\}`/);
 });
+
+test("IPD has no Schedule OT button (OT is scheduled from Ward)", () => {
+  const ui = read("components/clinical-phase3.tsx");
+  assert.doesNotMatch(ui, /onClick=\{\(\) => open\("ot", p\)\}/);
+  assert.match(ui, /onClick=\{\(\) => open\("ot", w\)\}/);
+});
