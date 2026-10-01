@@ -402,3 +402,13 @@ test("polishing round: emergency OPD, ward exit status, case category, today in 
   assert.match(special, /function InlineCell/);
   for (const f of ["app/page.tsx", "components/clinical-phase3.tsx", "components/special-module.tsx"]) assert.doesNotMatch(read(f), /localDate\(/); // "today" = India date
 });
+
+test("ward/OT round: ward tabs, Schedule OT column, OT date first, no Postpone", () => {
+  const ui = read("components/clinical-phase3.tsx");
+  assert.match(ui, /ADMIT PATIENT \(\{inWard\.length\}\)/);
+  assert.match(ui, /DISCHARGED PATIENT \(\{leftWard\.length\}\)/);
+  assert.match(ui, /wardTab === "ADMIT" \? "Schedule OT" : "STATUS"/);
+  assert.match(ui, /"Date \/ Time"/);
+  assert.doesNotMatch(ui, /Postpone/);
+  assert.match(ui, /`PAC updated: \$\{e\.target\.value\}`/);
+});
