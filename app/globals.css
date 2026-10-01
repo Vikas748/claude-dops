@@ -2169,3 +2169,14 @@ body {
 select.register-month { min-width: 140px; height: 42px; padding: 0 12px; border: 1px solid #e2d6c2; border-radius: 10px; background: #fff; font: inherit; font-weight: 700; letter-spacing: 0.04em; }
 /* Keep short values on one line in the clinical tables */
 .case-badge, .clinical-badge, .exit-select, .pac-select, .case-select, td.nowrap { white-space: nowrap; }
+
+/* ===== Ward / OT round ===== */
+/* OT: bigger PAC badges (FIT / PENDING / UNFIT alike) */
+.pac-big .clinical-badge { font-size: 13px; padding: 7px 16px; letter-spacing: 0.05em; }
+/* Ward: ADMIT PATIENT / DISCHARGED PATIENT tabs (like Skin Bank) */
+.ward-tab { font-weight: 800 !important; letter-spacing: 0.05em; padding: 8px 18px !important; border-radius: 10px !important; color: #3b352c !important; }
+.ward-tab-admit { background: #dbe8fc !important; }
+.ward-tab-discharged { background: #fcdde3 !important; }
+.ward-tab[data-state="active"] { color: #fff !important; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+.ward-tab-admit[data-state="active"] { background: #2f5fb3 !important; }
+.ward-tab-discharged[data-state="active"] { background: #b4234a !important; }

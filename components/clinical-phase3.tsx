@@ -91,6 +91,7 @@ export function ClinicalPhase3({
   const [data, setData] = useState<Data>({ ipd: [], ward: [], ot: [] }),
     [loading, setLoading] = useState(true),
     [query, setQuery] = useState(""),
+    [wardTab, setWardTab] = useState<"ADMIT" | "DISCHARGED">("ADMIT"),
     [dialog, setDialog] = useState<"ipd" | "ward" | "ot" | "discharge" | null>(
       null,
     ),
@@ -117,7 +118,7 @@ export function ClinicalPhase3({
     // Reload when the visible clinical module changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [module]);
-  async function action(body: Record<string, unknown>) {
+  async function action(body: Record<string, unknown>, done = "Clinical record updated.") {
     setSaving(true);
     try {
       const r = await fetch("/api/clinical", {
@@ -130,7 +131,7 @@ export function ClinicalPhase3({
       setDialog(null);
       await load();
       onChanged();
-      notify("Clinical record updated.");
+      notify(done);
     } catch (e) {
       notify(e instanceof Error ? e.message : "Action failed.");
     } finally {
@@ -199,12 +200,13 @@ export function ClinicalPhase3({
   const ipd = data.ipd.filter((x) =>
     `${x.name} ${x.patientCode} ${x.opdNumber ?? ""} ${x.diagnosis} ${x.admissionDate} ${formatDate(x.admissionDate)}`.toLowerCase().includes(q),
   );
-  // Discharged patients stay in the Ward list (with how they left); active ones first.
-  const wards = data.ward
-    .filter((x) =>
-      `${x.name} ${x.patientCode} ${x.opdNumber ?? ""} ${x.diagnosis} ${x.wardName} ${x.bedNumber} ${formatDate(x.admittedAt)} ${x.dischargeStatus ?? ""} ${x.caseCategory ?? ""}`.toLowerCase().includes(q),
-    )
-    .sort((a, b) => Number(Boolean(a.dischargedAt)) - Number(Boolean(b.dischargedAt)));
+  const matchesWard = (x: Ward) =>
+    `${x.name} ${x.patientCode} ${x.opdNumber ?? ""} ${x.diagnosis} ${x.wardName} ${x.bedNumber} ${formatDate(x.admittedAt)} ${x.dischargeStatus ?? ""} ${x.caseCategory ?? ""}`
+      .toLowerCase()
+      .includes(q);
+  // Ward has two lists: patients in the ward, and patients who have left (kept with how they left).
+  const inWard = data.ward.filter((x) => !x.dischargedAt && matchesWard(x));
+  const leftWard = data.ward.filter((x) => x.dischargedAt && matchesWard(x));
   return (
     <>
       <div className="module-heading">
@@ -222,7 +224,7 @@ export function ClinicalPhase3({
           {module === "IPD"
             ? ipd.length
             : module === "Ward"
-              ? wards.length
+              ? (wardTab === "ADMIT" ? inWard : leftWard).length
               : data.ot.length}
           <span>records</span>
         </div>
@@ -312,89 +314,91 @@ export function ClinicalPhase3({
         </ClinicalTable>
       )}
       {module === "Ward" && (
-        <ClinicalTable
-          headers={[
-            "Patient Name",
-            "Ward / Bed",
-            "Diagnosis",
-            "CASE CATEGORY",
-            "PAC fitness",
-            "Admitted",
-            "STATUS",
-            "Actions",
-          ]}
-          loading={loading}
-          empty={!wards.length}
-        >
-          {wards.map((w) => (
-            <tr key={w.wardId}>
-              <PatientCell p={w} />
-              <td>
-                <strong>{w.wardName}</strong>
-                <small>Bed {w.bedNumber}</small>
-              </td>
-              <td>{w.diagnosis}</td>
-              <td>{w.caseCategory ? <span className={`case-badge ${w.caseCategory.toLowerCase()}`}>{w.caseCategory}</span> : "—"}</td>
-              <td>
-                <select
-                  className={`pac-select ${w.pacStatus.toLowerCase()}`}
-                  value={w.pacStatus}
-                  disabled={Boolean(w.dischargedAt)}
-                  onChange={(e) =>
-                    action({
-                      action: "pac",
-                      id: w.wardId,
-                      status: e.target.value,
-                    })
-                  }
-                >
-                  <option>PENDING</option>
-                  <option>FIT</option>
-                  <option>UNFIT</option>
-                </select>
-              </td>
-              <td className="nowrap">{formatDate(w.admittedAt)}</td>
-              <td>
-                {w.dischargedAt ? (
-                  <select
-                    className="exit-select"
-                    aria-label={`Status for ${w.name}`}
-                    value={w.dischargeStatus ?? "DISCHARGED"}
-                    onChange={(e) => action({ action: "ward_status", wardId: w.wardId, status: e.target.value })}
-                  >
-                    {WARD_EXIT.map((x) => <option key={x}>{x}</option>)}
-                  </select>
-                ) : (
-                  <Badge value="IN_WARD" />
-                )}
-                {w.dischargedAt && <small className="exit-date">{formatDate(w.dischargedAt)}</small>}
-              </td>
-              <td>
-                <div className="row-actions">
-                  {!w.dischargedAt && <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => open("ot", w)}
-                  >
-                    <CalendarPlus /> Schedule OT
-                  </Button>
-                  <Button size="sm" onClick={() => open("discharge", w)}>
-                    <FileUp /> Discharge
-                  </Button>
-                  </>}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addToHelpline(w)}
-                  >
-                    <Stethoscope /> CM Helpline
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </ClinicalTable>
+        <>
+          {/* Two lists, like Skin Bank: patients in the ward, and patients who have left */}
+          <Tabs value={wardTab} onValueChange={(v) => setWardTab(v as "ADMIT" | "DISCHARGED")}>
+            <TabsList>
+              <TabsTrigger value="ADMIT" className="ward-tab ward-tab-admit">ADMIT PATIENT ({inWard.length})</TabsTrigger>
+              <TabsTrigger value="DISCHARGED" className="ward-tab ward-tab-discharged">DISCHARGED PATIENT ({leftWard.length})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <ClinicalTable
+            headers={[
+              "Patient Name",
+              "Ward / Bed",
+              "Diagnosis",
+              "CASE CATEGORY",
+              "PAC fitness",
+              "Admitted",
+              wardTab === "ADMIT" ? "Schedule OT" : "STATUS",
+              "Actions",
+            ]}
+            loading={loading}
+            empty={!(wardTab === "ADMIT" ? inWard : leftWard).length}
+          >
+            {(wardTab === "ADMIT" ? inWard : leftWard).map((w) => (
+              <tr key={w.wardId}>
+                <PatientCell p={w} />
+                <td>
+                  <strong>{w.wardName}</strong>
+                  <small>Bed {w.bedNumber}</small>
+                </td>
+                <td>{w.diagnosis}</td>
+                <td>{w.caseCategory ? <span className={`case-badge ${w.caseCategory.toLowerCase()}`}>{w.caseCategory}</span> : "—"}</td>
+                <td>
+                  {w.dischargedAt ? (
+                    <Badge value={w.pacStatus} />
+                  ) : (
+                    <select
+                      className={`pac-select ${w.pacStatus.toLowerCase()}`}
+                      aria-label={`PAC fitness for ${w.name}`}
+                      value={w.pacStatus}
+                      onChange={(e) =>
+                        action({ action: "pac", id: w.wardId, status: e.target.value }, `PAC updated: ${e.target.value}`)
+                      }
+                    >
+                      <option>PENDING</option>
+                      <option>FIT</option>
+                      <option>UNFIT</option>
+                    </select>
+                  )}
+                </td>
+                <td className="nowrap">{formatDate(w.admittedAt)}</td>
+                <td>
+                  {w.dischargedAt ? (
+                    <>
+                      <select
+                        className="exit-select"
+                        aria-label={`Status for ${w.name}`}
+                        value={w.dischargeStatus ?? "DISCHARGED"}
+                        onChange={(e) => action({ action: "ward_status", wardId: w.wardId, status: e.target.value })}
+                      >
+                        {WARD_EXIT.map((x) => <option key={x}>{x}</option>)}
+                      </select>
+                      <small className="exit-date">{formatDate(w.dischargedAt)}</small>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => open("ot", w)}>
+                      <CalendarPlus /> Schedule OT
+                    </Button>
+                  )}
+                </td>
+                <td>
+                  <div className="row-actions">
+                    {!w.dischargedAt && (
+                      <Button size="sm" onClick={() => open("discharge", w)}>
+                        <FileUp /> Discharge
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => addToHelpline(w)}>
+                      <Stethoscope /> CM Helpline
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </ClinicalTable>
+        </>
       )}
       {module === "OT" && (
         <OtView
@@ -588,7 +592,7 @@ function OtView({
         <TabsContent value={key} key={key}>
           <ClinicalTable
             headers={[
-              "Time / Date",
+              "Date / Time",
               "Patient Name",
               "Procedure",
               "Surgeon",
@@ -601,8 +605,8 @@ function OtView({
             {list.map((o) => (
               <tr key={o.id}>
                 <td>
-                  <strong>{o.scheduledTime}</strong>
-                  <small>{formatDate(o.scheduledDate)}</small>
+                  <strong className="nowrap">{formatDate(o.scheduledDate)}</strong>
+                  <small>{o.scheduledTime}</small>
                 </td>
                 <PatientCell p={o} />
                 <td>
@@ -611,7 +615,7 @@ function OtView({
                 </td>
                 <td>{o.surgeonName}</td>
                 <td>
-                  <Badge value={o.pacStatus} />
+                  <span className="pac-big"><Badge value={o.pacStatus} /></span>
                 </td>
                 <td>
                   <div className="row-actions">
@@ -624,22 +628,13 @@ function OtView({
                       <Images /> Images
                     </Button>
                     {o.status === "SCHEDULED" && (
-                      <>
-                        <Button
-                          size="icon-sm"
-                          aria-label="Mark completed"
-                          onClick={() => update(o.id, "COMPLETED")}
-                        >
-                          <Check />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => update(o.id, "POSTPONED")}
-                        >
-                          Postpone
-                        </Button>
-                      </>
+                      <Button
+                        size="icon-sm"
+                        aria-label="Mark completed"
+                        onClick={() => update(o.id, "COMPLETED")}
+                      >
+                        <Check />
+                      </Button>
                     )}
                   </div>
                 </td>
