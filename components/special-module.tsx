@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { formatDate, formatDateTime, localDate } from "@/lib/dates";
+import { formatDate, formatDateTime, istDate } from "@/lib/dates";
 import { Columns3, Download, History, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,7 +160,7 @@ export function SpecialModule({
     [rows, setRows] = useState<R[]>([]),
     [q, setQ] = useState(""),
     [statusFilter, setStatusFilter] = useState("ALL"),
-    [month, setMonth] = useState(localDate().slice(0, 7)),
+    [month, setMonth] = useState(istDate().slice(0, 7)),
     [cellKey, setCellKey] = useState(""),
     [open, setOpen] = useState(false),
     [edit, setEdit] = useState<R | null>(null),

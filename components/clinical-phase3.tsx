@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { formatDate, localDate } from "@/lib/dates";
+import { formatDate, istDate } from "@/lib/dates";
 import { uploadAllDirect, uploadDirect } from "@/lib/direct-upload";
 import Image from "next/image";
 import {
@@ -566,8 +566,8 @@ function OtView({
       notify(e instanceof Error ? e.message : "Could not remove image.");
     }
   }
-  const [today] = useState(() => localDate()),
-    [tomorrow] = useState(() => localDate(1));
+  const [today] = useState(() => istDate()),
+    [tomorrow] = useState(() => istDate(1));
   const lists = {
     today: data.filter((x) => x.scheduledDate === today),
     tomorrow: data.filter((x) => x.scheduledDate === tomorrow),

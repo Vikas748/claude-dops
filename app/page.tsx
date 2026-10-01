@@ -2,7 +2,7 @@
 import Image from "next/image";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { formatDate, localDate } from "@/lib/dates";
+import { formatDate, istDate } from "@/lib/dates";
 import {
   Activity,
   Ambulance,
@@ -906,7 +906,7 @@ function Dashboard({
   showTimeline: (patient: Patient) => void;
   userName?: string;
 }) {
-  const today = localDate();
+  const today = istDate();
   const [clinicalCounts, setClinicalCounts] = useState({
     ipd: 0,
     ward: 0,
@@ -932,7 +932,7 @@ function Dashboard({
         setClinicalCounts({
           // Admitted to IPD today, and left the ward today (any STATUS)
           ipd: j.data.ipd.filter((x) => x.admissionDate === today).length,
-          discharged: j.data.ward.filter((x) => x.dischargedAt && localDate(0, new Date(x.dischargedAt)) === today).length,
+          discharged: j.data.ward.filter((x) => x.dischargedAt && istDate(0, new Date(x.dischargedAt)) === today).length,
           ward: j.data.ward.filter((x) => !x.dischargedAt).length,
           ot: j.data.ot.filter((x) => x.scheduledDate === today).length,
         });
