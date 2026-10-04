@@ -1,4 +1,5 @@
 import postgres, { type Sql } from "postgres";
+import { getR2Config, getR2BucketInstance } from "@/lib/r2-storage";
 
 type QueryExecutor = Pick<Sql, "unsafe">;
 
@@ -88,6 +89,10 @@ function objectUrl(key: string) {
 }
 
 export function getDopsBucket() {
+  const r2 = getR2Config();
+  if (r2) {
+    return getR2BucketInstance(r2);
+  }
   const { serviceKey } = storageConfig();
   const headers = { apikey: serviceKey, authorization: `Bearer ${serviceKey}` };
   return {

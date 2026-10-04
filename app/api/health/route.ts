@@ -1,6 +1,7 @@
 import { getDopsBucket, getDopsDb } from "@/lib/dops-db";
 import { getDopsAccess, isResponse } from "@/lib/access";
 import { verifyMailer } from "@/lib/mailer";
+import { isR2Configured } from "@/lib/r2-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,8 @@ export const dynamic = "force-dynamic";
  *
  * Public output never includes secret values or raw error messages.
  */
-const REQUIRED_ENV = [
+const BASE_REQUIRED_ENV = [
   "SUPABASE_DATABASE_URL",
-  "NEXT_PUBLIC_SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
   "AUTH_SECRET",
   "SMTP_HOST",
   "SMTP_USER",
@@ -95,7 +94,12 @@ async function storageRoundTrip() {
 
 export async function GET(request: Request) {
   const wantsDeep = new URL(request.url).searchParams.get("deep") === "1";
-  const missingEnv = REQUIRED_ENV.filter((name) => !process.env[name]?.trim());
+  const r2Active = isR2Configured();
+  const storageRequiredEnv = r2Active
+    ? ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]
+    : ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
+  const requiredEnv = [...BASE_REQUIRED_ENV, ...storageRequiredEnv];
+  const missingEnv = requiredEnv.filter((name) => !process.env[name]?.trim());
   const secretLength = process.env.AUTH_SECRET?.trim().length ?? 0;
   const encKey = process.env.DATA_ENCRYPTION_KEY?.trim();
   const encKeyBad = Boolean(encKey) && Buffer.from(encKey!, "base64").length !== 32;
