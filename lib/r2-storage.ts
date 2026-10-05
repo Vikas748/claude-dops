@@ -135,13 +135,16 @@ function signR2Request(options: {
   const host = new URL(endpoint).host;
   const canonicalUri = `/${encodeURIComponent(config.bucket)}/${encodeR2Path(key)}`;
 
-  const bodyBuffer = options.body
-    ? options.body instanceof Buffer
-      ? options.body
-      : typeof options.body === "string"
-      ? Buffer.from(options.body, "utf8")
-      : Buffer.from(options.body)
-    : Buffer.alloc(0);
+  let bodyBuffer: Buffer;
+  if (!options.body) {
+    bodyBuffer = Buffer.alloc(0);
+  } else if (options.body instanceof Buffer) {
+    bodyBuffer = options.body;
+  } else if (typeof options.body === "string") {
+    bodyBuffer = Buffer.from(options.body, "utf8");
+  } else {
+    bodyBuffer = Buffer.from(new Uint8Array(options.body));
+  }
 
   const payloadHash = sha256(bodyBuffer);
 
@@ -195,7 +198,7 @@ function signR2Request(options: {
       ...allHeaders,
       authorization: authHeader,
     },
-    body: method === "GET" || method === "HEAD" ? undefined : bodyBuffer,
+    body: method === "GET" || method === "HEAD" ? undefined : new Uint8Array(bodyBuffer),
   };
 }
 
